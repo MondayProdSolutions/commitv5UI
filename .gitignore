@@ -7,6 +7,9 @@ node_modules/
 # SDD workspace (git-ignored scratch)
 .superpowers/
 
+# Git worktrees (isolated workspaces for feature branches)
+.worktrees/
+
 # Local embedded Postgres
 .pgdata/
 .e2e-db-url
