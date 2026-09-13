@@ -27,12 +27,12 @@ El sistema tiene cuatro tipos de usuario de fábrica. Un administrador puede ade
 
 | Rol | Para qué sirve | Puede hacer | No puede hacer |
 |---|---|---|---|
-| **Administrador** | Responsable total del sistema | **Todo**: vender, caja, catálogo, inventario, clientes, reportes (incluidos costos), y además crear usuarios y roles, desactivar usuarios, ver la auditoría y cambiar la configuración | — |
-| **Gerente** | Encargado de la operación | Vender, aplicar descuentos, cancelar ventas, caja, todo el catálogo e inventario, clientes, todos los reportes (incluidos costos), crear y editar usuarios, restablecer contraseñas, consultar la auditoría | Desactivar usuarios · gestionar roles · cambiar la configuración del sistema |
-| **Cajero** | Atiende el punto de venta | Abrir y cerrar caja, registrar ventas, cobrar, registrar devoluciones, dar de alta clientes, consultar productos, inventario y los reportes de ventas/inventario/clientes | Aplicar descuentos · cancelar ventas · editar productos, precios o inventario · ver el reporte de utilidad/margen · nada de administración |
-| **Empleado** | Consulta de apoyo | Ver el catálogo de productos, el inventario y la lista de clientes | Vender, tocar caja, editar cualquier cosa, ver reportes |
+| **Administrador** | Responsable total del sistema | **Todo**: vender, caja, catálogo, inventario, clientes, reportes (incluidos costos), y además crear usuarios y roles, desactivar usuarios, ver la auditoría, cambiar la configuración, ver el panel de asistencia y cerrar turnos abandonados | — |
+| **Gerente** | Encargado de la operación | Vender, aplicar descuentos, cancelar ventas, caja, todo el catálogo e inventario, clientes, todos los reportes (incluidos costos), crear y editar usuarios, restablecer contraseñas, consultar la auditoría, ver el panel de asistencia | Desactivar usuarios · gestionar roles · cambiar la configuración del sistema · cerrar turnos abandonados |
+| **Cajero** | Atiende el punto de venta | Abrir y cerrar caja, registrar ventas, cobrar, registrar devoluciones, dar de alta clientes, consultar productos, inventario y los reportes de ventas/inventario/clientes | Aplicar descuentos · cancelar ventas · editar productos, precios o inventario · ver el reporte de utilidad/margen · ver el panel de asistencia · nada de administración |
+| **Empleado** | Consulta de apoyo | Ver el catálogo de productos, el inventario y la lista de clientes | Vender, tocar caja, editar cualquier cosa, ver reportes, ver el panel de asistencia |
 
-Cualquier usuario, sea cual sea su rol, puede **editar sus propios datos de contacto**, **cambiar su contraseña** y **ver su propia actividad**.
+Cualquier usuario, sea cual sea su rol, puede **editar sus propios datos de contacto**, **cambiar su contraseña**, **ver su propia actividad** y **registrar su propia entrada y salida de asistencia**.
 
 ---
 
@@ -881,6 +881,54 @@ Límites:
 
 ---
 
+# Bloque 5 — Asistencia
+
+Este bloque cubre el registro de entrada y salida de los empleados, y el panel de asistencia que consultan gerentes y administradores.
+
+---
+
+## 68. Registrar tu entrada y salida
+
+**Quién puede:** Administrador, Gerente, Cajero, Empleado (cualquier persona con sesión).
+
+1. En el menú, entra a **Asistencia** y luego a **Registrar** (o ve directamente a `/asistencia/registrar`).
+2. Pulsa **Activar cámara** para tomar una foto de comprobante. Si el navegador te pide permiso, acéptalo.
+   - Si no tienes cámara disponible, o prefieres no usarla, ignora este paso: el registro se hace igual, sin foto.
+3. Con la cámara activa, pulsa **Capturar foto** para tomar la imagen.
+4. Pulsa **Marcar entrada**. Verás el mensaje “Entrada registrada.”.
+5. Al terminar tu turno, vuelve a la misma pantalla, repite los pasos 2-3 si quieres foto de salida y pulsa **Marcar salida**. Verás “Salida registrada.”.
+
+> Solo puedes tener **una entrada y una salida por día**. Si ya marcaste ambas hoy, la pantalla te lo indica y no vuelve a mostrar el formulario.
+
+---
+
+## 69. Ver el panel de asistencia (Gerentes y Administradores)
+
+**Quién puede:** Administrador, Gerente.
+
+1. En el menú, entra a **Asistencia**.
+2. Usa el **selector de período** y, si quieres, los filtros de **empleado** y **rol** para acotar lo que ves.
+3. Revisa la información de arriba hacia abajo:
+   - **Turnos abiertos en el período**: empleados que marcaron entrada pero todavía no tienen salida registrada.
+   - **Llegadas por hora**: gráfica con cuántas entradas hubo en cada hora del día.
+   - **Horas trabajadas por empleado**: tabla con el total de horas de cada quien en el período.
+   - **Registros de hoy**: galería con las fotos de entrada y salida del día.
+
+---
+
+## 70. Cerrar un turno que alguien olvidó cerrar (solo Administradores)
+
+**Quién puede:** solo **Administrador**.
+
+1. En **Asistencia**, ubica la sección **Turnos abiertos en el período** (aparece si hay algún turno sin salida registrada, sea de hoy o de un día anterior dentro del período que estás viendo).
+2. Junto al turno abierto, escribe la **hora de salida** correcta.
+3. Pulsa **Cerrar turno**.
+4. El turno pasa a cerrado y sus horas trabajadas se calculan con la hora que escribiste.
+
+> La hora de salida debe ser **posterior** a la hora de entrada; si escribes una igual o anterior, el sistema te lo rechaza.
+
+---
+
 ## Resumen rápido: quién hace qué
 
 | Tarea | Administrador | Gerente | Cajero | Empleado |
@@ -901,6 +949,9 @@ Límites:
 | Crear / editar / borrar roles | ✅ | — | — | — |
 | Consultar la auditoría | ✅ | ✅ | — | — |
 | Cambiar la configuración | ✅ | — | — | — |
+| Registrar tu propia entrada/salida | ✅ | ✅ | ✅ | ✅ |
+| Ver el panel de asistencia | ✅ | ✅ | — | — |
+| Cerrar un turno de asistencia abandonado | ✅ | — | — | — |
 
 ## Qué NO hace el sistema (para tenerlo claro)
 
@@ -910,6 +961,7 @@ Límites:
 - **No borra** usuarios, roles con uso, categorías, productos, variantes ni clientes: se **archivan** o **desactivan**.
 - **No permite deshacer** un cierre de caja, una cancelación de venta ni una devolución.
 - La pantalla de **Configuración** solo tiene un ajuste (el tiempo de inactividad).
+- **No cierra solo un turno de asistencia que cruza la medianoche**: un empleado que entró antes de las 00:00 y sale después no puede marcar su propia salida al día siguiente; un Administrador debe cerrarlo a mano.
 
 ---
 

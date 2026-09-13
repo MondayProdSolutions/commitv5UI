@@ -63,6 +63,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ### Notas importantes
 
 - **`.pgdata/`**: Carpeta de la BD local persistente. Puedes borrarla en cualquier momento para empezar de cero (después de `db:reset` o `db:start`).
+- **`ATTENDANCE_PHOTOS_DIR`**: carpeta local donde se guardan las fotos de entrada/salida de Asistencia (por defecto `.attendance-photos`, ignorada por git).
 - **Tests de integración**: No requieren `npm run db:start` — cada test levanta su propia instancia efímera de PostgreSQL en el puerto `54330`. Corren en paralelo de forma segura.
 - **CI (Integración Continua)**: El workflow en `.github/workflows/ci.yml` ejecuta `lint` + `typecheck` + `test:unit` + `test:integration` en cada push/PR. Los E2E se pueden correr manualmente con `workflow_dispatch` en GitHub Actions.
 - **`npm run db:seed`**: además de roles y permisos, siembra las tasas de impuesto por defecto — `IVA 16%` (tasa `0.16`, marcada como `esDefault`) y `Exento` (tasa `0`). El upsert es idempotente.

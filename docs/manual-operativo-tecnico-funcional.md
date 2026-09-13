@@ -2,7 +2,7 @@
 
 > **Propósito.** Este documento describe, módulo por módulo, **qué hace el sistema, para qué sirve, quién puede usar cada parte, qué información maneja, qué valida, qué efectos produce en otros módulos, sus casos especiales y qué queda registrado en auditoría.**
 >
-> **Alcance.** Cubre la funcionalidad realmente implementada en el código de la aplicación (Bloques 1–6). No describe funciones planificadas ni mejoras futuras. Cada afirmación de este manual está verificada contra el código fuente.
+> **Alcance.** Cubre la funcionalidad realmente implementada en el código de la aplicación (Bloques 1–7). No describe funciones planificadas ni mejoras futuras. Cada afirmación de este manual está verificada contra el código fuente.
 >
 > **A quién va dirigido.** Personal técnico‑funcional: administradores del sistema, responsables de operación, soporte y quien deba entender el comportamiento exacto del sistema. Para instrucciones paso a paso orientadas al usuario final, véase el *Manual de Usuario* (documento aparte).
 
@@ -71,6 +71,9 @@ Esta tabla es transversal a todos los módulos. Es la **fuente de verdad** de la
 | Caja | `caja.gestionar` | Abrir y cerrar caja, registrar movimientos y ver cortes |
 | Reportes | `reportes.ver` | Ver reportes de ventas, inventario y clientes |
 | Reportes | `reportes.margen` | Ver el reporte de utilidad y margen (incluye costos) |
+| Asistencia | `asistencia.registrar` | Registrar la propia entrada y salida |
+| Asistencia | `asistencia.ver` | Ver el dashboard de asistencia de todos los empleados |
+| Asistencia | `asistencia.corregir` | Editar o cerrar manualmente un registro de asistencia |
 
 ### Permisos por rol de sistema
 
@@ -106,11 +109,14 @@ Esta tabla es transversal a todos los módulos. Es la **fuente de verdad** de la
 | `caja.gestionar` | ✅ | ✅ | ✅ | — |
 | `reportes.ver` | ✅ | ✅ | ✅ | — |
 | `reportes.margen` | ✅ | ✅ | — | — |
+| `asistencia.registrar` | ✅ | ✅ | ✅ | ✅ |
+| `asistencia.ver` | ✅ | ✅ | — | — |
+| `asistencia.corregir` | ✅ | — | — | — |
 
 - **Administrador** tiene **todos** los permisos, siempre (se define como “todas las claves del catálogo”).
 - **Gerente** administra la operación completa (productos, inventario, clientes, ventas, caja, reportes con costos, alta/edición de usuarios y consulta de auditoría) pero **no** puede desactivar usuarios, **no** puede gestionar roles y **no** puede editar la configuración del sistema.
 - **Cajero** opera el punto de venta y la caja, da de alta clientes y consulta ventas y reportes sin costos. **No** puede aplicar descuentos ni cancelar ventas.
-- **Empleado** es un rol de solo lectura de catálogo, inventario y clientes.
+- **Empleado** es un rol de solo lectura de catálogo, inventario y clientes; su única acción de escritura es registrar su propia entrada/salida de asistencia.
 
 ### Salvaguardas sobre roles
 
@@ -1130,11 +1136,63 @@ Nada.
 
 ---
 
+## Módulo 15 — Asistencia
+
+### Qué hace
+
+Registro de entrada y salida de empleados, con foto opcional de comprobante capturada por cámara; cálculo automático de horas trabajadas; dashboard con llegadas por hora, horas por empleado y galería de fotos del día; corrección/cierre manual de turnos abandonados por un Administrador.
+
+### Para qué sirve
+
+Llevar control del horario real trabajado por cada empleado sin depender de un reloj checador físico, y dar a la gerencia visibilidad diaria de llegadas y horas.
+
+### Usuarios y permisos
+
+| Acción | Permiso | Roles de sistema con acceso |
+|---|---|---|
+| Registrar la propia entrada/salida (`/asistencia/registrar`) | `asistencia.registrar` | Administrador, Gerente, Cajero, Empleado (todos) |
+| Ver el dashboard de asistencia (`/asistencia`) | `asistencia.ver` | Administrador, Gerente |
+| Cerrar/corregir manualmente un turno | `asistencia.corregir` | Administrador |
+
+### Información que maneja
+
+- **`AttendanceRecord`**: un registro por empleado por **día natural en America/Mexico_City** (`userId` + `fecha` es único), con hora de entrada, hora de salida (nula mientras el turno sigue abierto), minutos trabajados (calculados al hacer checkout o al corregir) y quién corrigió el registro, si aplica.
+- **Fotos**: se guardan como archivos en disco bajo `ATTENDANCE_PHOTOS_DIR` (`<fecha>/<userId>-<tipo>-<timestamp>.jpg`); solo la **ruta relativa** se guarda en `AttendanceRecord`, nunca el binario en la base de datos.
+
+### Acciones que permite
+
+- Marcar entrada y marcar salida desde `/asistencia/registrar`, con o sin foto.
+- Ver el dashboard en `/asistencia`: gráfica de llegadas por hora, tabla de horas por empleado, galería de fotos de los registros de hoy y lista de turnos abiertos, todo filtrable por período, empleado y rol.
+- Cerrar manualmente un turno abandonado desde la sección “Turnos abiertos en el período” — funciona para cualquier día dentro del período visible, no solo hoy.
+
+### Qué valida
+
+- Un solo par entrada/salida por empleado por día natural (restricción única a nivel de base de datos).
+- No se puede marcar salida sin una entrada previa del mismo día.
+- Al corregir un turno, la nueva hora de salida debe ser **posterior** a la hora de entrada (una salida anterior o igual se rechaza).
+- Una foto ausente, inválida o que exceda el tamaño máximo (5MB) **nunca bloquea** el registro de entrada/salida — el sistema continúa sin foto.
+
+### Efectos en otros módulos
+
+- **Ninguno.** Solo lee `User` y `Role` ya existentes (a través de una relación nueva); no modifica la lógica de Ventas, Caja, Inventario ni Catálogo.
+
+### Casos especiales
+
+- Si no hay cámara disponible (permiso denegado, sin hardware, o contexto inseguro) el registro se completa sin foto.
+- Un turno que **cruza la medianoche** (entrada antes de las 00:00, salida después) no puede cerrarlo el propio empleado al día siguiente, porque el checkout solo actúa sobre el registro del día natural en curso — debe cerrarlo un Administrador desde “Turnos abiertos”.
+- Las fotos se sirven únicamente mediante un endpoint autenticado (`/api/asistencia/foto/...`) que verifica sesión y permiso antes de leer el archivo; nunca se exponen desde una carpeta pública, y la respuesta se envía con `cache-control: no-store` por tratarse de un dispositivo potencialmente compartido.
+
+### Qué se audita
+
+Nada por ahora: este módulo no llama a `logActivity` (véase “Límites y ausencias conocidas”).
+
+---
+
 ## Cierre de la FASE 7
 
-Este manual cubre los **catorce módulos** funcionales del sistema (Bloques 1–6), verificados uno a uno contra el código:
+Este manual cubre los **quince módulos** funcionales del sistema (Bloques 1–7), verificados uno a uno contra el código:
 
-1. Autenticación y Sesiones · 2. Usuarios · 3. Roles y Permisos · 4. Auditoría · 5. Configuración · 6. Categorías · 7. Productos y Variantes · 8. Inventario y Movimientos · 9. Clientes · 10. Ventas / Punto de venta · 11. Devoluciones · 12. Caja: sesiones y arqueo · 13. Reportes · 14. Dashboard.
+1. Autenticación y Sesiones · 2. Usuarios · 3. Roles y Permisos · 4. Auditoría · 5. Configuración · 6. Categorías · 7. Productos y Variantes · 8. Inventario y Movimientos · 9. Clientes · 10. Ventas / Punto de venta · 11. Devoluciones · 12. Caja: sesiones y arqueo · 13. Reportes · 14. Dashboard · 15. Asistencia.
 
 ### Límites y ausencias conocidas (documentadas, no defectos)
 
@@ -1145,6 +1203,9 @@ Este manual cubre los **catorce módulos** funcionales del sistema (Bloques 1–
 - **Sin borrado físico** en ningún módulo de catálogo o personas: usuarios, roles con uso, categorías, productos, variantes y clientes se **archivan/desactivan**, nunca se eliminan, para preservar la trazabilidad. Sí se pueden borrar roles sin usuarios.
 - **Operaciones irreversibles**: cierre de caja, cancelación de venta, devolución. No tienen “deshacer”.
 - El limitador de intentos de inicio de sesión vive **en memoria del proceso** (no persiste entre reinicios).
+- Un turno de asistencia que cruza la medianoche no puede cerrarlo el propio empleado al día siguiente (ver Módulo 15) — requiere corrección manual de un Administrador.
+- Las fotos de asistencia no tienen política de retención/limpieza automática — crecen indefinidamente en `ATTENDANCE_PHOTOS_DIR`; en un despliegue containerizado sin volumen persistente, se pierden en cada redeploy aunque la base de datos siga apuntando a ellas.
+- Tras desplegar este bloque en una instalación existente, es necesario volver a correr `npm run db:seed` para que los permisos `asistencia.*` lleguen a los roles — esto reescribe los permisos de los roles de sistema y descarta cualquier personalización manual hecha desde la pantalla de Roles.
 
 Estas ausencias se listan como parte del alcance real del sistema; no implican trabajo pendiente dentro de FASE 7.
 
