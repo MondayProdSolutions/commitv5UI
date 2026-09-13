@@ -17,13 +17,7 @@ export default async function RegistrarAsistenciaPage() {
   return (
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-2xl font-bold">Mi asistencia</h1>
-      {accion === 'completo' ? (
-        <p className="rounded-control bg-surface-raised px-3 py-2 text-sm text-ink-muted">
-          Ya registraste tu entrada y salida de hoy.
-        </p>
-      ) : (
-        <CameraCapture accion={accion} />
-      )}
+      <CameraCapture accion={accion} />
     </div>
   );
 }

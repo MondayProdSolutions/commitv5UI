@@ -8,8 +8,12 @@ import { registrarEntradaAction, registrarSalidaAction } from './actions';
 const FORM_INITIAL: FormState = { ok: false };
 
 type CamaraEstado = 'inactiva' | 'activando' | 'transmitiendo' | 'capturada' | 'no_disponible';
+type Accion = 'checkin' | 'checkout' | 'completo';
 
-export function CameraCapture({ accion }: { accion: 'checkin' | 'checkout' }) {
+export function CameraCapture({ accion }: { accion: Accion }) {
+  // Sin acción pendiente (`completo`) no hay Server Action que enlazar — se usa
+  // `registrarSalidaAction` como valor de relleno inerte: en ese estado nunca
+  // se renderiza el <form>, así que nunca se dispara.
   const action = accion === 'checkin' ? registrarEntradaAction : registrarSalidaAction;
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, FORM_INITIAL);
 
@@ -28,14 +32,15 @@ export function CameraCapture({ accion }: { accion: 'checkin' | 'checkout' }) {
   }, []);
 
   // Al cambiar de acción (p. ej. tras un check-in exitoso, la página pasa de
-  // `checkin` a `checkout`) se resetea solo el estado de cámara/foto — nunca
-  // se reutiliza la foto de una acción anterior en la siguiente. El banner de
-  // éxito no depende de `accion` (ver `ultimoEnviado`), así que este efecto no
-  // lo toca. Este efecto sincroniza con sistemas externos (el `MediaStream`
-  // de la cámara y el nodo DOM nativo del `<input type="file">`, vía refs) —
-  // no puede expresarse como estado derivado durante el render porque los
-  // refs no son accesibles ahí (regla `react-hooks/refs`), así que el
-  // `setState` que acompaña ese reset se deshabilita puntualmente abajo.
+  // `checkin` a `checkout`, o de `checkout` a `completo`) se resetea solo el
+  // estado de cámara/foto — nunca se reutiliza la foto de una acción anterior
+  // en la siguiente. El banner de éxito no depende de `accion` (ver
+  // `ultimoEnviado`), así que este efecto no lo toca. Este efecto sincroniza
+  // con sistemas externos (el `MediaStream` de la cámara y el nodo DOM nativo
+  // del `<input type="file">`, vía refs) — no puede expresarse como estado
+  // derivado durante el render porque los refs no son accesibles ahí (regla
+  // `react-hooks/refs`), así que el `setState` que acompaña ese reset se
+  // deshabilita puntualmente abajo.
   useEffect(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -81,13 +86,10 @@ export function CameraCapture({ accion }: { accion: 'checkin' | 'checkout' }) {
   }
 
   const etiqueta = accion === 'checkin' ? 'Marcar entrada' : 'Marcar salida';
+  const mostrarFormulario = accion !== 'completo';
 
   return (
-    <form
-      action={formAction}
-      onSubmit={() => setUltimoEnviado(accion)}
-      className="space-y-4 rounded-card border border-line bg-surface p-4"
-    >
+    <div className="space-y-4">
       {state.formError ? (
         <p className="rounded-control bg-danger-soft px-3 py-2 text-sm text-on-danger-soft">{state.formError}</p>
       ) : null}
@@ -97,52 +99,69 @@ export function CameraCapture({ accion }: { accion: 'checkin' | 'checkout' }) {
         </p>
       ) : null}
 
-      <input ref={fileInputRef} type="file" name="foto" accept="image/jpeg" className="hidden" />
-
-      {camara === 'inactiva' ? (
-        <Button type="button" variant="secondary" className="w-full" onClick={activarCamara}>
-          Activar cámara
-        </Button>
-      ) : null}
-      {camara === 'activando' ? (
-        <p className="text-sm text-ink-muted">Solicitando acceso a la cámara…</p>
-      ) : null}
-      {camara === 'no_disponible' ? (
+      {!mostrarFormulario ? (
         <p className="rounded-control bg-surface-raised px-3 py-2 text-sm text-ink-muted">
-          No se pudo acceder a la cámara — se registrará sin foto.
+          Ya registraste tu entrada y salida de hoy.
         </p>
-      ) : null}
+      ) : (
+        <form
+          action={formAction}
+          // Este <form> solo se renderiza cuando `mostrarFormulario` es true (accion
+          // !== 'completo'); TypeScript ya estrecha `accion` a 'checkin' | 'checkout'
+          // aquí mismo vía análisis de flujo de la condición con alias, así que la
+          // ternaria original `accion === 'completo' ? null : accion` es código
+          // muerto que TS rechaza (TS2367: sin solapamiento) — se asigna directo.
+          onSubmit={() => setUltimoEnviado(accion)}
+          className="space-y-4 rounded-card border border-line bg-surface p-4"
+        >
+          <input ref={fileInputRef} type="file" name="foto" accept="image/jpeg" className="hidden" />
 
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className={camara === 'transmitiendo' ? 'w-full rounded-control' : 'hidden'}
-      />
-      <canvas ref={canvasRef} className="hidden" />
+          {camara === 'inactiva' ? (
+            <Button type="button" variant="secondary" className="w-full" onClick={activarCamara}>
+              Activar cámara
+            </Button>
+          ) : null}
+          {camara === 'activando' ? (
+            <p className="text-sm text-ink-muted">Solicitando acceso a la cámara…</p>
+          ) : null}
+          {camara === 'no_disponible' ? (
+            <p className="rounded-control bg-surface-raised px-3 py-2 text-sm text-ink-muted">
+              No se pudo acceder a la cámara — se registrará sin foto.
+            </p>
+          ) : null}
 
-      {camara === 'transmitiendo' ? (
-        <Button type="button" variant="secondary" className="w-full" onClick={capturar}>
-          Capturar foto
-        </Button>
-      ) : null}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={camara === 'transmitiendo' ? 'w-full rounded-control' : 'hidden'}
+          />
+          <canvas ref={canvasRef} className="hidden" />
 
-      {camara === 'capturada' && previewUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- vista previa local (object URL), no aplica next/image
-        <img src={previewUrl} alt="Foto capturada" className="h-32 w-32 rounded-control object-cover" />
-      ) : null}
+          {camara === 'transmitiendo' ? (
+            <Button type="button" variant="secondary" className="w-full" onClick={capturar}>
+              Capturar foto
+            </Button>
+          ) : null}
 
-      <Button
-        type="submit"
-        variant="primary"
-        className="w-full"
-        disabled={camara === 'activando'}
-        pending={pending}
-        pendingLabel="Registrando…"
-      >
-        {etiqueta}
-      </Button>
-    </form>
+          {camara === 'capturada' && previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- vista previa local (object URL), no aplica next/image
+            <img src={previewUrl} alt="Foto capturada" className="h-32 w-32 rounded-control object-cover" />
+          ) : null}
+
+          <Button
+            type="submit"
+            variant="primary"
+            className="w-full"
+            disabled={camara === 'activando'}
+            pending={pending}
+            pendingLabel="Registrando…"
+          >
+            {etiqueta}
+          </Button>
+        </form>
+      )}
+    </div>
   );
 }
