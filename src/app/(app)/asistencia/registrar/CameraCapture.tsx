@@ -91,7 +91,7 @@ export function CameraCapture({ accion }: { accion: 'checkin' | 'checkout' }) {
       {state.formError ? (
         <p className="rounded-control bg-danger-soft px-3 py-2 text-sm text-on-danger-soft">{state.formError}</p>
       ) : null}
-      {state.ok && ultimoEnviado ? (
+      {state.ok && ultimoEnviado && !pending ? (
         <p className="rounded-control bg-primary-soft px-3 py-2 text-sm text-ink">
           {ultimoEnviado === 'checkin' ? 'Entrada registrada.' : 'Salida registrada.'}
         </p>
