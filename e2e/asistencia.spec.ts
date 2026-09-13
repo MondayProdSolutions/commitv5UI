@@ -33,6 +33,20 @@ async function crearEmpleado(page: Page, email: string): Promise<string> {
   return temp;
 }
 
+/**
+ * Espera a que el `<video>` de la cámara tenga un frame real decodificado
+ * (`videoWidth`/`videoHeight` > 0). `getUserMedia` puede resolver — y el
+ * estado de React pasar a "transmitiendo" — antes de que el elemento
+ * `<video>` reciba metadata del stream sintético; capturar antes de eso
+ * produce un canvas de 0×0 y por lo tanto ninguna foto adjunta al formulario.
+ */
+async function esperarVideoListo(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const video = document.querySelector('video');
+    return !!video && video.videoWidth > 0 && video.videoHeight > 0;
+  });
+}
+
 async function cambiarPassword(page: Page, email: string, temp: string, nueva: string): Promise<void> {
   await login(page, email, temp);
   await expect(page).toHaveURL(/\/cambiar-password/);
@@ -56,12 +70,14 @@ test('Marcar entrada y salida con cámara simulada guarda fotos y calcula horas'
 
     await emp.goto('/asistencia/registrar');
     await emp.getByRole('button', { name: 'Activar cámara' }).click();
+    await esperarVideoListo(emp);
     await emp.getByRole('button', { name: 'Capturar foto' }).click();
     await emp.getByRole('button', { name: 'Marcar entrada' }).click();
     await expect(emp.getByText('Entrada registrada.')).toBeVisible();
 
     await emp.reload();
     await emp.getByRole('button', { name: 'Activar cámara' }).click();
+    await esperarVideoListo(emp);
     await emp.getByRole('button', { name: 'Capturar foto' }).click();
     await emp.getByRole('button', { name: 'Marcar salida' }).click();
     await expect(emp.getByText('Salida registrada.')).toBeVisible();
@@ -70,10 +86,13 @@ test('Marcar entrada y salida con cámara simulada guarda fotos y calcula horas'
   }
 
   await page.goto('/asistencia?atajo=hoy');
-  await expect(page.getByText('Empleado Asistencia')).toBeVisible();
+  // El nombre del empleado también aparece en el <select> de filtros y en la
+  // tabla "Horas trabajadas por empleado" — se acota a la tarjeta de la
+  // galería de "Registros de hoy" para evitar una violación de strict mode.
   const tarjeta = page
     .locator('div.rounded-control')
     .filter({ has: page.getByText('Empleado Asistencia') });
+  await expect(tarjeta).toBeVisible();
   await expect(tarjeta.locator('img')).toHaveCount(2);
 });
 
