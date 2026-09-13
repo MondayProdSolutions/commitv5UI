@@ -16,6 +16,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/ventas/historial', label: 'Ventas', permiso: 'ventas.ver' },
   { href: '/caja', label: 'Caja', permiso: 'caja.gestionar' },
   { href: '/reportes', label: 'Reportes', permiso: 'reportes.ver' },
+  { href: '/asistencia/registrar', label: 'Registrar asistencia', permiso: 'asistencia.registrar' },
+  { href: '/asistencia', label: 'Asistencia (dashboard)', permiso: 'asistencia.ver' },
   { href: '/perfil', label: 'Mi perfil' },
 ];
 

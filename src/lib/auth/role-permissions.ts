@@ -21,12 +21,16 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'caja.gestionar',
     // Bloque 6: Reportes
     'reportes.ver', 'reportes.margen',
+    // Bloque 7: Asistencia
+    'asistencia.registrar', 'asistencia.ver',
   ],
   Cajero: [
     'productos.ver', 'inventario.ver', 'clientes.ver', 'clientes.crear',
     'ventas.crear', 'ventas.ver', 'ventas.devolver',
     'caja.gestionar',
     'reportes.ver',
+    // Bloque 7: Asistencia
+    'asistencia.registrar',
   ],
-  Empleado: ['productos.ver', 'inventario.ver', 'clientes.ver'],
+  Empleado: ['productos.ver', 'inventario.ver', 'clientes.ver', 'asistencia.registrar'],
 };

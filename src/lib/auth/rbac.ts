@@ -80,6 +80,14 @@ export const PERMISSIONS = [
       { key: 'reportes.margen', label: 'Ver el reporte de utilidad y margen (costos)' },
     ],
   },
+  {
+    modulo: 'asistencia', label: 'Asistencia',
+    permisos: [
+      { key: 'asistencia.registrar', label: 'Registrar la propia entrada y salida' },
+      { key: 'asistencia.ver', label: 'Ver el dashboard y reportes de asistencia de todos los empleados' },
+      { key: 'asistencia.corregir', label: 'Editar o cerrar manualmente un registro de asistencia' },
+    ],
+  },
 ] as const;
 
 export type PermissionKey =
