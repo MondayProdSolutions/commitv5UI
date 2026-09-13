@@ -1,0 +1,28 @@
+node_modules/
+.next/
+.env
+.env.local
+*.log
+
+# SDD workspace (git-ignored scratch)
+.superpowers/
+
+# Local embedded Postgres
+.pgdata/
+.e2e-db-url
+.env.test.local
+
+# Build / tooling artifacts
+/out/
+/build
+/coverage
+*.tsbuildinfo
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+next-env.d.ts
+.vercel
+.DS_Store

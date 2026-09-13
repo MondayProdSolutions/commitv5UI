@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+/*
+ * Sistema de diseño POS — dirección "táctil y vibrante" (Toast/Clover), neutral.
+ * Aprobada 2026-09-07. Reemplaza el sistema índigo/slate de la FASE 6.
+ *
+ * Regla de uso: las pantallas NO usan colores crudos de Tailwind
+ * (bg-white, text-slate-700, bg-indigo-600...). Usan estos tokens
+ * semánticos, con paleta light y dark diseñadas por separado.
+ *
+ * Dark mode: por clase .dark en <html> (estrategia class, no media query),
+ * con toggle real. La elevación en dark es superficie más clara + borde,
+ * nunca box-shadow.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- Paleta cruda: LIGHT (valores por defecto) ---------- */
+:root {
+  color-scheme: light;
+
+  /* Neutros / superficies */
+  --c-canvas: #f6f8f7;
+  --c-surface: #ffffff;
+  --c-surface-raised: #f1f4f3;
+  --c-surface-sunken: #ecefee;
+  --c-ink: #131a19;
+  --c-ink-muted: #55605d;
+  --c-ink-subtle: #838d8a;
+  --c-line: #e2e6e4;
+  --c-line-strong: #cbd1cf;
+
+  /* Primario (teal) */
+  --c-primary: #0f9b8e;
+  --c-primary-hover: #0c8478;
+  --c-primary-active: #0a6f66;
+  --c-on-primary: #ffffff;
+  --c-primary-soft: #e2f4f2;
+  --c-on-primary-soft: #0b6b62;
+
+  /* Acentos con propósito (color-coding categoría/estado, estilo Clover) */
+  --c-accent-blue: #2f6fed;
+  --c-accent-blue-soft: #e6effe;
+  --c-on-accent-blue-soft: #1b4fbd;
+  --c-accent-amber: #e08a00;
+  --c-accent-amber-soft: #fbecd2;
+  --c-on-accent-amber-soft: #9a5d00;
+  --c-accent-violet: #7a5af8;
+  --c-accent-violet-soft: #ece7fe;
+  --c-on-accent-violet-soft: #543ab5;
+
+  /* Semánticos de estado */
+  --c-success: #12855f;
+  --c-success-soft: #d9f2e6;
+  --c-on-success-soft: #0b6244;
+  --c-warning: #b06f00;
+  --c-warning-soft: #fbecd2;
+  --c-on-warning-soft: #8a5600;
+  --c-danger: #d4342c;
+  --c-danger-solid: #dc2626;
+  --c-danger-solid-hover: #b91c1c;
+  --c-on-danger: #ffffff;
+  --c-danger-soft: #fde3e1;
+  --c-on-danger-soft: #a51b16;
+
+  /* Foco */
+  --c-ring: #0f9b8e;
+
+  /* Radios (arriba del sistema viejo de 6-8px) */
+  --radius-control: 12px;
+  --radius-card: 20px;
+  --radius-pill: 999px;
+
+  /* Sombras — solo light. En dark la elevación es superficie + borde. */
+  --shadow-card: 0 1px 2px rgb(17 26 25 / 0.04), 0 6px 16px rgb(17 26 25 / 0.06);
+  --shadow-pop: 0 8px 28px rgb(17 26 25 / 0.14);
+  --shadow-primary: 0 1px 2px rgb(15 155 142 / 0.25), 0 4px 12px rgb(15 155 142 / 0.22);
+}
+
+/* ---------- Paleta cruda: DARK (diseñada desde cero, no invertida) ---------- */
+.dark {
+  color-scheme: dark;
+
+  --c-canvas: #0e1211;
+  --c-surface: #171c1b;
+  --c-surface-raised: #1f2624;
+  --c-surface-sunken: #101514;
+  --c-ink: #e8ebea;
+  --c-ink-muted: #a2aba8;
+  --c-ink-subtle: #6d7773;
+  --c-line: #2a312f;
+  --c-line-strong: #3b433f;
+
+  --c-primary: #22c3b6;
+  --c-primary-hover: #38d2c6;
+  --c-primary-active: #4bddd2;
+  --c-on-primary: #04201e;
+  --c-primary-soft: #172f2d;
+  --c-on-primary-soft: #74e2d8;
+
+  --c-accent-blue: #5b93ff;
+  --c-accent-blue-soft: #17243f;
+  --c-on-accent-blue-soft: #a9c6ff;
+  --c-accent-amber: #f5a524;
+  --c-accent-amber-soft: #2f2411;
+  --c-on-accent-amber-soft: #f7c37a;
+  --c-accent-violet: #9b87ff;
+  --c-accent-violet-soft: #241f3d;
+  --c-on-accent-violet-soft: #c8bcff;
+
+  --c-success: #34d399;
+  --c-success-soft: #102b22;
+  --c-on-success-soft: #7fe6c3;
+  --c-warning: #f5a524;
+  --c-warning-soft: #2f2411;
+  --c-on-warning-soft: #f7c37a;
+  --c-danger: #f87171;
+  --c-danger-solid: #e5484d;
+  --c-danger-solid-hover: #f26a6e;
+  --c-on-danger: #2a0d0d;
+  --c-danger-soft: #331a1a;
+  --c-on-danger-soft: #f6a3a3;
+
+  --c-ring: #22c3b6;
+
+  --shadow-card: none;
+  --shadow-pop: 0 10px 34px rgb(0 0 0 / 0.55);
+  --shadow-primary: none;
+}
+
+/* ---------- Mapeo a utilidades Tailwind v4 ---------- */
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-surface-raised: var(--c-surface-raised);
+  --color-surface-sunken: var(--c-surface-sunken);
+  --color-ink: var(--c-ink);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-ink-subtle: var(--c-ink-subtle);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+
+  --color-primary: var(--c-primary);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-primary-active: var(--c-primary-active);
+  --color-on-primary: var(--c-on-primary);
+  --color-primary-soft: var(--c-primary-soft);
+  --color-on-primary-soft: var(--c-on-primary-soft);
+
+  --color-accent-blue: var(--c-accent-blue);
+  --color-accent-blue-soft: var(--c-accent-blue-soft);
+  --color-on-accent-blue-soft: var(--c-on-accent-blue-soft);
+  --color-accent-amber: var(--c-accent-amber);
+  --color-accent-amber-soft: var(--c-accent-amber-soft);
+  --color-on-accent-amber-soft: var(--c-on-accent-amber-soft);
+  --color-accent-violet: var(--c-accent-violet);
+  --color-accent-violet-soft: var(--c-accent-violet-soft);
+  --color-on-accent-violet-soft: var(--c-on-accent-violet-soft);
+
+  --color-success: var(--c-success);
+  --color-success-soft: var(--c-success-soft);
+  --color-on-success-soft: var(--c-on-success-soft);
+  --color-warning: var(--c-warning);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-on-warning-soft: var(--c-on-warning-soft);
+  --color-danger: var(--c-danger);
+  --color-danger-solid: var(--c-danger-solid);
+  --color-danger-solid-hover: var(--c-danger-solid-hover);
+  --color-on-danger: var(--c-on-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-on-danger-soft: var(--c-on-danger-soft);
+
+  --color-ring: var(--c-ring);
+
+  --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+  --radius-pill: var(--radius-pill);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-primary: var(--shadow-primary);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Foco visible y consistente en todo control interactivo. */
+:focus-visible {
+  outline: 2px solid var(--c-ring);
+  outline-offset: 2px;
+}
