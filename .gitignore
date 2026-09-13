@@ -15,6 +15,9 @@ node_modules/
 .e2e-db-url
 .env.test.local
 
+# Attendance photos storage
+.attendance-photos/
+
 # Build / tooling artifacts
 /out/
 /build
