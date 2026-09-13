@@ -22,7 +22,7 @@ export default async function RegistrarAsistenciaPage() {
           Ya registraste tu entrada y salida de hoy.
         </p>
       ) : (
-        <CameraCapture key={accion} accion={accion} />
+        <CameraCapture accion={accion} />
       )}
     </div>
   );

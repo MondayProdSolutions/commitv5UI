@@ -19,12 +19,32 @@ export function CameraCapture({ accion }: { accion: 'checkin' | 'checkout' }) {
   const streamRef = useRef<MediaStream | null>(null);
   const [camara, setCamara] = useState<CamaraEstado>('inactiva');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [ultimoEnviado, setUltimoEnviado] = useState<'checkin' | 'checkout' | null>(null);
 
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
+
+  // Al cambiar de acción (p. ej. tras un check-in exitoso, la página pasa de
+  // `checkin` a `checkout`) se resetea solo el estado de cámara/foto — nunca
+  // se reutiliza la foto de una acción anterior en la siguiente. El banner de
+  // éxito no depende de `accion` (ver `ultimoEnviado`), así que este efecto no
+  // lo toca. Este efecto sincroniza con sistemas externos (el `MediaStream`
+  // de la cámara y el nodo DOM nativo del `<input type="file">`, vía refs) —
+  // no puede expresarse como estado derivado durante el render porque los
+  // refs no son accesibles ahí (regla `react-hooks/refs`), así que el
+  // `setState` que acompaña ese reset se deshabilita puntualmente abajo.
+  useEffect(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    /* eslint-disable react-hooks/set-state-in-effect -- sincroniza estado de React con refs externos (stream/input) al cambiar `accion`; no puede derivarse en render porque los refs no son accesibles ahí */
+    setCamara('inactiva');
+    setPreviewUrl(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [accion]);
 
   async function activarCamara() {
     setCamara('activando');
@@ -63,13 +83,17 @@ export function CameraCapture({ accion }: { accion: 'checkin' | 'checkout' }) {
   const etiqueta = accion === 'checkin' ? 'Marcar entrada' : 'Marcar salida';
 
   return (
-    <form action={formAction} className="space-y-4 rounded-card border border-line bg-surface p-4">
+    <form
+      action={formAction}
+      onSubmit={() => setUltimoEnviado(accion)}
+      className="space-y-4 rounded-card border border-line bg-surface p-4"
+    >
       {state.formError ? (
         <p className="rounded-control bg-danger-soft px-3 py-2 text-sm text-on-danger-soft">{state.formError}</p>
       ) : null}
-      {state.ok ? (
+      {state.ok && ultimoEnviado ? (
         <p className="rounded-control bg-primary-soft px-3 py-2 text-sm text-ink">
-          {accion === 'checkin' ? 'Entrada registrada.' : 'Salida registrada.'}
+          {ultimoEnviado === 'checkin' ? 'Entrada registrada.' : 'Salida registrada.'}
         </p>
       ) : null}
 
