@@ -82,4 +82,15 @@ describe('corregirRegistro', () => {
       corregirRegistro({ id: abierto.id, checkOutAt: new Date('2026-09-13T10:00:00Z'), actorId: admin }),
     ).rejects.toThrow(ValidationError);
   });
+
+  it('rechaza una salida exactamente igual a la entrada', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-13T14:00:00Z'));
+    const abierto = await checkIn({ userId: userA, fotoPath: null });
+    vi.useRealTimers();
+
+    await expect(
+      corregirRegistro({ id: abierto.id, checkOutAt: new Date('2026-09-13T14:00:00Z'), actorId: admin }),
+    ).rejects.toThrow(ValidationError);
+  });
 });
