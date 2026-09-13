@@ -30,6 +30,8 @@ model User {
   cajasAbiertas      CashSession[]  @relation("AbiertaPor")
   cajasCerradas      CashSession[]  @relation("CerradaPor")
   movimientosCaja    CashMovement[] @relation("ActorMovimientoCaja")
+  asistencias           AttendanceRecord[] @relation("AsistenciaUsuario")
+  asistenciasCorregidas AttendanceRecord[] @relation("AsistenciaCorregidoPor")
 
   @@index([roleId])
   @@index([activo])
@@ -417,4 +419,26 @@ model CashMovement {
   createdAt DateTime        @default(now())
 
   @@index([sessionId])
+}
+
+// --- Bloque 7: Asistencia ---
+
+model AttendanceRecord {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation("AsistenciaUsuario", fields: [userId], references: [id])
+  fecha             String
+  checkInAt         DateTime
+  checkInFotoPath   String?
+  checkOutAt        DateTime?
+  checkOutFotoPath  String?
+  minutosTrabajados Int?
+  corregidoPorId    String?
+  corregidoPor      User?     @relation("AsistenciaCorregidoPor", fields: [corregidoPorId], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, fecha])
+  @@index([fecha])
+  @@index([userId, fecha])
 }
