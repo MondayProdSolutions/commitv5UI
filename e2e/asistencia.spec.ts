@@ -75,7 +75,6 @@ test('Marcar entrada y salida con cámara simulada guarda fotos y calcula horas'
     await emp.getByRole('button', { name: 'Marcar entrada' }).click();
     await expect(emp.getByText('Entrada registrada.')).toBeVisible();
 
-    await emp.reload();
     await emp.getByRole('button', { name: 'Activar cámara' }).click();
     await esperarVideoListo(emp);
     await emp.getByRole('button', { name: 'Capturar foto' }).click();

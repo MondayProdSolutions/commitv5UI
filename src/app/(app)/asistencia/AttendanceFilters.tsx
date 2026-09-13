@@ -46,7 +46,14 @@ export function AttendanceFilters({
       <Button type="submit" variant="primary">Filtrar</Button>
       {hayFiltro ? (
         <Link
-          href={`/asistencia${current.atajo ? `?atajo=${current.atajo}` : ''}`}
+          href={(() => {
+            const params = new URLSearchParams();
+            if (current.atajo) params.set('atajo', current.atajo);
+            if (current.desde) params.set('desde', current.desde);
+            if (current.hasta) params.set('hasta', current.hasta);
+            const qs = params.toString();
+            return `/asistencia${qs ? `?${qs}` : ''}`;
+          })()}
           className="px-2 py-2 text-sm text-ink-subtle hover:text-ink"
         >
           Quitar filtros

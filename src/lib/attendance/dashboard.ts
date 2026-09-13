@@ -25,6 +25,7 @@ export type AttendanceDashboard = {
     checkOutAt: Date | null;
     checkOutFotoPath: string | null;
   }[];
+  turnosAbiertos: { id: string; userId: string; nombre: string; fecha: string; checkInAt: Date }[];
 };
 
 export async function getAttendanceDashboard(
@@ -87,5 +88,10 @@ export async function getAttendanceDashboard(
       checkOutFotoPath: r.checkOutFotoPath,
     }));
 
-  return { periodo, llegadasPorHora, horasPorEmpleado, registrosDeHoy };
+  const turnosAbiertos = registros
+    .filter((r) => !r.checkOutAt)
+    .map((r) => ({ id: r.id, userId: r.userId, nombre: r.user.nombre, fecha: r.fecha, checkInAt: r.checkInAt }))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+  return { periodo, llegadasPorHora, horasPorEmpleado, registrosDeHoy, turnosAbiertos };
 }

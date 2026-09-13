@@ -58,6 +58,24 @@ export default async function AsistenciaPage(props: {
       </Card>
 
       <Card>
+        <h2 className="mb-3 text-lg font-semibold text-ink">Turnos abiertos en el período</h2>
+        {dashboard.turnosAbiertos.length === 0 ? (
+          <p className="text-sm text-ink-subtle">No hay turnos abiertos en este período.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {dashboard.turnosAbiertos.map((t) => (
+              <li key={t.id} className="py-2">
+                <p className="text-sm text-ink">
+                  {t.nombre} — entrada el {t.fecha} a las {fmtHora(t.checkInAt)}
+                </p>
+                {puedeCorregir ? <CorregirTurnoForm recordId={t.id} /> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
         <h2 className="mb-3 text-lg font-semibold text-ink">Horas trabajadas por empleado</h2>
         {dashboard.horasPorEmpleado.length === 0 ? (
           <p className="text-sm text-ink-subtle">Sin datos en este período.</p>

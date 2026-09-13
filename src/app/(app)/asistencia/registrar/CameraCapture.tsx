@@ -93,6 +93,13 @@ export function CameraCapture({ accion }: { accion: Accion }) {
       {state.formError ? (
         <p className="rounded-control bg-danger-soft px-3 py-2 text-sm text-on-danger-soft">{state.formError}</p>
       ) : null}
+      {state.fieldErrors && Object.keys(state.fieldErrors).length > 0 ? (
+        <div className="rounded-control bg-danger-soft px-3 py-2 text-sm text-on-danger-soft">
+          {Object.values(state.fieldErrors).map((msg, i) => (
+            <p key={i}>{msg}</p>
+          ))}
+        </div>
+      ) : null}
       {state.ok && ultimoEnviado && !pending ? (
         <p className="rounded-control bg-primary-soft px-3 py-2 text-sm text-ink">
           {ultimoEnviado === 'checkin' ? 'Entrada registrada.' : 'Salida registrada.'}

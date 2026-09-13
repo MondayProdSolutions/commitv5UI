@@ -26,6 +26,11 @@ export function CorregirTurnoForm({ recordId }: { recordId: string }) {
         Cerrar turno
       </Button>
       {state.formError ? <span className="text-xs text-danger">{state.formError}</span> : null}
+      {state.fieldErrors && Object.keys(state.fieldErrors).length > 0
+        ? Object.values(state.fieldErrors).map((msg, i) => (
+            <span key={i} className="text-xs text-danger">{msg}</span>
+          ))
+        : null}
     </form>
   );
 }

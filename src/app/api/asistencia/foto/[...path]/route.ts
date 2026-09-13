@@ -35,6 +35,6 @@ export async function GET(
 
   const buffer = await readFile(abs);
   return new NextResponse(new Uint8Array(buffer), {
-    headers: { 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=3600' },
+    headers: { 'content-type': 'image/jpeg', 'cache-control': 'no-store' },
   });
 }
