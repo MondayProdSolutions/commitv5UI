@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { hashPassword } from '@/lib/auth/password';
 import { updateIdleTimeout } from './settings-admin';
 import { getIdleTimeoutMinutes } from './settings';
@@ -9,9 +9,9 @@ beforeEach(async () => {
   await db.activityLog.deleteMany();
   await db.user.deleteMany();
   await db.appSetting.upsert({
-    where: { clave: 'session.idleTimeoutMinutes' },
+    where: { tenantId_clave: { tenantId: getCurrentTenantId(), clave: 'session.idleTimeoutMinutes' } },
     update: { valor: 15 },
-    create: { clave: 'session.idleTimeoutMinutes', valor: 15 },
+    create: { tenantId: getCurrentTenantId(), clave: 'session.idleTimeoutMinutes', valor: 15 },
   });
   const admin = await db.role.findFirstOrThrow({ where: { nombre: 'Administrador' } });
   actorId = (
@@ -28,9 +28,9 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await db.appSetting.upsert({
-    where: { clave: 'session.idleTimeoutMinutes' },
+    where: { tenantId_clave: { tenantId: getCurrentTenantId(), clave: 'session.idleTimeoutMinutes' } },
     update: { valor: 15 },
-    create: { clave: 'session.idleTimeoutMinutes', valor: 15 },
+    create: { tenantId: getCurrentTenantId(), clave: 'session.idleTimeoutMinutes', valor: 15 },
   });
 });
 

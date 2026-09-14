@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { getSetting, setSetting, getIdleTimeoutMinutes } from './settings';
 
 beforeEach(async () => {
   await db.appSetting.deleteMany({ where: { clave: { startsWith: 'test.' } } });
   // Reset idle timeout to seed value
   await db.appSetting.upsert({
-    where: { clave: 'session.idleTimeoutMinutes' },
+    where: { tenantId_clave: { tenantId: getCurrentTenantId(), clave: 'session.idleTimeoutMinutes' } },
     update: { valor: 15 },
-    create: { clave: 'session.idleTimeoutMinutes', valor: 15 },
+    create: { tenantId: getCurrentTenantId(), clave: 'session.idleTimeoutMinutes', valor: 15 },
   });
 });
 

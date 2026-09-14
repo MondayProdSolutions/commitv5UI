@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { getSetting, setSetting } from './settings';
 import { logActivity } from '@/lib/audit';
 
@@ -8,12 +8,13 @@ export async function updateIdleTimeout(
   ip: string | null,
 ): Promise<void> {
   const antes = await getSetting<number>('session.idleTimeoutMinutes', 15);
+  const tenantId = getCurrentTenantId();
   await db.$transaction(async (tx) => {
     // setSetting uses `db`; for transaction we reproduce the upsert with tx
     await tx.appSetting.upsert({
-      where: { clave: 'session.idleTimeoutMinutes' },
+      where: { tenantId_clave: { tenantId, clave: 'session.idleTimeoutMinutes' } },
       update: { valor: minutes },
-      create: { clave: 'session.idleTimeoutMinutes', valor: minutes },
+      create: { tenantId, clave: 'session.idleTimeoutMinutes', valor: minutes },
     });
     await logActivity(
       {

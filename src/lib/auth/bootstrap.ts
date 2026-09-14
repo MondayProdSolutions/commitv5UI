@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { hashPassword, passwordPolicyError } from './password';
 import { logActivity } from '@/lib/audit';
 import { ValidationError } from '@/lib/errors';
@@ -21,9 +21,11 @@ export async function createFirstAdmin(input: SetupInput): Promise<{ userId: str
 
   const passwordHash = await hashPassword(input.password);
 
+  const tenantId = getCurrentTenantId();
+
   return db.$transaction(async (tx) => {
     const role = await tx.role.upsert({
-      where: { nombre: 'Administrador' },
+      where: { tenantId_nombre: { tenantId, nombre: 'Administrador' } },
       update: { esSistema: true },
       create: { nombre: 'Administrador', esSistema: true, descripcion: 'Rol de sistema: Administrador' },
     });

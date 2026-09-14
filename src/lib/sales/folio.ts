@@ -1,8 +1,9 @@
 import type { Prisma } from '@prisma/client';
+import { getCurrentTenantId } from '@/lib/db';
 
 /**
- * Incrementa el contador `FolioCounter[prefijo]` de forma atómica dentro de la
- * transacción del llamador y devuelve el folio formateado (`V-000123`).
+ * Incrementa el contador `FolioCounter[tenantId, prefijo]` de forma atómica dentro
+ * de la transacción del llamador y devuelve el folio formateado (`V-000123`).
  *
  * El `UPDATE ... RETURNING` serializa por fila, así que dos llamadas concurrentes
  * obtienen valores distintos. Si la transacción del llamador hace rollback, el
@@ -14,8 +15,10 @@ export async function nextFolio(
   tx: Prisma.TransactionClient,
   prefijo: 'V' | 'D' | 'C',
 ): Promise<string> {
+  const tenantId = getCurrentTenantId();
   const rows = await tx.$queryRaw<{ valor: number }[]>`
-    UPDATE "FolioCounter" SET valor = valor + 1 WHERE serie = ${prefijo} RETURNING valor`;
+    UPDATE "FolioCounter" SET valor = valor + 1
+    WHERE "tenantId" = ${tenantId} AND serie = ${prefijo} RETURNING valor`;
   const valor = rows[0]?.valor;
   if (valor == null) throw new Error(`FolioCounter '${prefijo}' no existe`);
   return `${prefijo}-${String(valor).padStart(6, '0')}`;

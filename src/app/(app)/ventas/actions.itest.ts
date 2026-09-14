@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { hashPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
 import { createSale } from '@/lib/sales/sales';
@@ -185,7 +185,11 @@ describe('crearVentaAction', () => {
   it('pago que no cubre el total → formError de createSale, sin redirect, FolioCounter.V intacto', async () => {
     await sesionRol('Cajero', CAJERO);
     const { variantId } = await seedVariant({ precioVenta: 100, stock: 10 });
-    const before = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const before = (
+      await db.folioCounter.findUniqueOrThrow({
+        where: { tenantId_serie: { tenantId: getCurrentTenantId(), serie: 'V' } },
+      })
+    ).valor;
 
     const res = await crearVentaAction(
       { ok: false },
@@ -199,7 +203,11 @@ describe('crearVentaAction', () => {
     expect(res.formError).toBeTruthy();
     expect(redirectMock).not.toHaveBeenCalled();
     expect(await db.sale.count()).toBe(0);
-    const after = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const after = (
+      await db.folioCounter.findUniqueOrThrow({
+        where: { tenantId_serie: { tenantId: getCurrentTenantId(), serie: 'V' } },
+      })
+    ).valor;
     expect(after).toBe(before);
   });
 });

@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { ValidationError } from '@/lib/errors';
 import { computeSale } from './compute';
 import { cancelSale, createSale, getSale, listSales, type CreateSaleInput } from './sales';
 import { seedCajero, seedVariant, cleanupSales, conCajaAbierta } from './__testutil';
+
+/** `FolioCounter` ahora tiene clave compuesta `(tenantId, serie)`. */
+function folioCounterWhere(serie: 'V' | 'D' | 'C') {
+  return { tenantId_serie: { tenantId: getCurrentTenantId(), serie } };
+}
 
 const CAJERO_EMAIL = 'task6-ventas@pos.com';
 let ACTOR: string;
@@ -140,7 +145,7 @@ describe('createSale', () => {
 
   it('pago insuficiente → ValidationError _form, nada creado, FolioCounter no avanzó', async () => {
     const { variantId } = await seedVariant({ precioVenta: 100, stock: 5 });
-    const before = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const before = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
 
     await expect(
       createSale(
@@ -152,7 +157,7 @@ describe('createSale', () => {
 
     expect(await db.sale.count()).toBe(0);
     expect(await db.inventoryMovement.count()).toBe(0);
-    const after = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const after = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
     expect(after).toBe(before);
   });
 
@@ -160,7 +165,7 @@ describe('createSale', () => {
     const a = await seedVariant({ precioVenta: 100, stock: 10 });
     const b = await seedVariant({ precioVenta: 100, stock: 10 });
     const c = await seedVariant({ precioVenta: 100, stock: 1 });
-    const before = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const before = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
 
     await expect(
       createSale(
@@ -180,7 +185,7 @@ describe('createSale', () => {
     expect(await db.sale.count()).toBe(0);
     expect(await db.inventoryMovement.count()).toBe(0);
     expect((await db.productVariant.findUniqueOrThrow({ where: { id: a.variantId } })).stock).toBe(10);
-    const after = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const after = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
     expect(after).toBe(before);
   });
 
@@ -309,7 +314,7 @@ describe('createSale', () => {
 
   it('customerId inexistente → ValidationError({ customerId }); nada creado, FolioCounter.V intacto', async () => {
     const { variantId } = await seedVariant({ precioVenta: 100, stock: 5 });
-    const before = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const before = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
 
     await expect(
       createSale(
@@ -325,14 +330,14 @@ describe('createSale', () => {
 
     expect(await db.sale.count()).toBe(0);
     expect(await db.inventoryMovement.count()).toBe(0);
-    const after = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const after = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
     expect(after).toBe(before);
   });
 
   it('sin caja abierta → ValidationError _form, nada creado, FolioCounter.V intacto', async () => {
     const { variantId } = await seedVariant({ precioVenta: 100, stock: 5 });
     await db.cashSession.update({ where: { id: SESSION_ID }, data: { estado: 'CERRADA' } });
-    const before = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const before = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
 
     const err = await createSale(
       ACTOR,
@@ -344,7 +349,7 @@ describe('createSale', () => {
 
     expect(await db.sale.count()).toBe(0);
     expect(await db.inventoryMovement.count()).toBe(0);
-    const after = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const after = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('V') })).valor;
     expect(after).toBe(before);
   });
 

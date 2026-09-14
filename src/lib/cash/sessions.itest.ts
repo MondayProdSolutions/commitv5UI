@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { ValidationError } from '@/lib/errors';
 import { hashPassword } from '@/lib/auth/password';
 import { cancelSale, createSale, type CreateSaleInput } from '@/lib/sales/sales';
@@ -36,7 +36,8 @@ async function seedGestor(email: string): Promise<string> {
 
 /** Este archivo asevera el número exacto de folio, así que el contador 'C' parte de 0. */
 async function resetFolioC(): Promise<void> {
-  await db.folioCounter.update({ where: { serie: 'C' }, data: { valor: 0 } });
+  const tenantId = getCurrentTenantId();
+  await db.folioCounter.update({ where: { tenantId_serie: { tenantId, serie: 'C' } }, data: { valor: 0 } });
 }
 
 function saleInput(over: Partial<CreateSaleInput> = {}): CreateSaleInput {
@@ -88,14 +89,22 @@ describe('openCashSession', () => {
 
   it('con una ya abierta → ValidationError _form "Ya hay una caja abierta.", FolioCounter[C] no avanzó', async () => {
     await openCashSession(ACTOR, 100, null);
-    const before = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'C' } })).valor;
+    const before = (
+      await db.folioCounter.findUniqueOrThrow({
+        where: { tenantId_serie: { tenantId: getCurrentTenantId(), serie: 'C' } },
+      })
+    ).valor;
     expect(before).toBe(1);
 
     const err = await openCashSession(ACTOR, 200, null).catch((e) => e);
     expect(err).toBeInstanceOf(ValidationError);
     expect(err.fields._form).toBe('Ya hay una caja abierta.');
 
-    const after = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'C' } })).valor;
+    const after = (
+      await db.folioCounter.findUniqueOrThrow({
+        where: { tenantId_serie: { tenantId: getCurrentTenantId(), serie: 'C' } },
+      })
+    ).valor;
     expect(after).toBe(1);
     expect(await db.cashSession.count()).toBe(1);
   });
