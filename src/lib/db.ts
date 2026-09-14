@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { PrismaClient, type Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL no está definida');
@@ -92,18 +93,56 @@ export function getCurrentTenantId(): string {
   return store.tenantId;
 }
 
+// Pool dedicado para __setTestTenantId — deliberadamente NO reutiliza `rawPrisma`.
+// `withTenant`/`withPlatformAdmin` no necesitan este hook: cada llamada abre su
+// propia transacción fresca y fija la variable con `set_config(..., true)` (alcance
+// de transacción, "SET LOCAL"), que por diseño no debe sobrevivir a otra conexión.
+// `__setTestTenantId`, en cambio, fija la variable UNA vez para que persista toda
+// la ejecución del worker — y por eso es vulnerable a que `@prisma/adapter-pg`
+// descarte la conexión pooleada tras cualquier error de consulta (`conn.release(error)`
+// en su código de manejo de transacciones/errores), abriendo una conexión de
+// reemplazo sin la variable fijada. El hook `pool.on('connect', ...)` de abajo cierra
+// ese hueco de raíz: reaplica `app.tenant_id` en CUALQUIER conexión física nueva que
+// abra este pool, incluidas las de reemplazo, en vez de parchar cada sitio de
+// llamada que resulte afectado.
+let testPool: Pool | null = null;
+let testPoolPrisma: PrismaClient | null = null;
+
+function getTestPoolPrisma(): PrismaClient {
+  if (!testPoolPrisma) {
+    testPool = new Pool({
+      connectionString,
+      max: process.env.DB_POOL_MAX ? Number(process.env.DB_POOL_MAX) : undefined,
+    });
+    testPool.on('connect', (client) => {
+      const tenantId = testFallbackStore?.tenantId;
+      if (tenantId) {
+        client
+          .query("SELECT set_config('app.tenant_id', $1, false)", [tenantId])
+          .catch((err: unknown) => {
+            console.error('__setTestTenantId: no se pudo re-aplicar app.tenant_id tras un reconnect', err);
+          });
+      }
+    });
+    testPoolPrisma = new PrismaClient({ adapter: new PrismaPg(testPool) });
+  }
+  return testPoolPrisma;
+}
+
 /** Solo para `test/vitest.setup.ts` (Step 9): fija el tenant activo para toda la
  *  ejecución del worker de Vitest, sin envolver cada test individualmente.
  *  A diferencia de withTenant, usa `set_config(..., false)` — alcance de SESIÓN,
  *  no de transacción — porque aquí no hay una única transacción envolviendo todos
- *  los tests. Por eso Step 9 fija DB_POOL_MAX=1: con una sola conexión en el pool,
- *  la variable de sesión persiste igual en cada consulta posterior del worker.
- *  Guarda el store en `testFallbackStore` (ver la nota junto a esa variable) en vez
- *  de (solo) `storage.enterWith(...)`, porque enterWith no sobrevive al límite entre
- *  hooks y tests en esta versión de Vitest. */
+ *  los tests. Guarda el store en `testFallbackStore` (ver la nota junto a esa
+ *  variable) en vez de (solo) `storage.enterWith(...)`, porque enterWith no
+ *  sobrevive al límite entre hooks y tests en esta versión de Vitest. */
 export async function __setTestTenantId(tenantId: string): Promise<void> {
-  await rawPrisma.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
-  const store: TenantStore = { tx: rawPrisma as unknown as TxClient, tenantId };
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('__setTestTenantId no puede usarse en producción.');
+  }
+  const prisma = getTestPoolPrisma();
+  await prisma.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
+  const store: TenantStore = { tx: prisma as unknown as TxClient, tenantId };
   storage.enterWith(store);
   testFallbackStore = store;
 }

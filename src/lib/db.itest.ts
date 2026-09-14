@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import { db, withTenant, withPlatformAdmin, getCurrentTenantId } from './db';
 
@@ -25,6 +26,61 @@ describe('withTenant', () => {
       `;
       expect(rows[0].current_setting).toBe(tenant.id);
     });
+  });
+
+  it('un create() sin tenantId explícito toma el DEFAULT de columna bajo el set_config transaccional de withTenant', async () => {
+    const tenant = await withPlatformAdmin(() =>
+      db.tenant.findFirstOrThrow({ where: { slug: 'default' } }),
+    );
+    const nombre = `db-itest-default-${randomUUID()}`;
+
+    await withTenant(tenant.id, async () => {
+      const rate = await db.taxRate.create({ data: { nombre, tasa: 0.16, esDefault: false } });
+      expect(rate.tenantId).toBe(tenant.id);
+    });
+
+    await withPlatformAdmin(() => db.taxRate.deleteMany({ where: { nombre } }));
+  });
+
+  it('un db.$transaction anidado dentro de withTenant hace rollback solo de la transacción interna que falla', async () => {
+    const tenant = await withPlatformAdmin(() =>
+      db.tenant.findFirstOrThrow({ where: { slug: 'default' } }),
+    );
+    const nombreOk = `db-itest-nested-ok-${randomUUID()}`;
+    const nombreFail = `db-itest-nested-fail-${randomUUID()}`;
+
+    await withTenant(tenant.id, async () => {
+      // Transacción interna que sí confirma.
+      await db.$transaction(async (tx) => {
+        await tx.taxRate.create({ data: { nombre: nombreOk, tasa: 0.16, esDefault: false } });
+      });
+
+      // Transacción interna que falla a propósito — debe revertirse sin tumbar la
+      // transacción externa de withTenant (Prisma 7 implementa esto con SAVEPOINTs
+      // sobre @prisma/adapter-pg).
+      await expect(
+        db.$transaction(async (tx) => {
+          await tx.taxRate.create({ data: { nombre: nombreFail, tasa: 0.16, esDefault: false } });
+          throw new Error('rollback a propósito');
+        }),
+      ).rejects.toThrow('rollback a propósito');
+
+      // La transacción externa sigue viva: se puede seguir consultando en ella.
+      const ok = await db.taxRate.findFirst({ where: { nombre: nombreOk } });
+      const fail = await db.taxRate.findFirst({ where: { nombre: nombreFail } });
+      expect(ok).not.toBeNull();
+      expect(fail).toBeNull();
+    });
+
+    // Confirma también después de que withTenant hizo commit de la transacción externa.
+    const okAfterCommit = await withPlatformAdmin(() => db.taxRate.findFirst({ where: { nombre: nombreOk } }));
+    const failAfterCommit = await withPlatformAdmin(() => db.taxRate.findFirst({ where: { nombre: nombreFail } }));
+    expect(okAfterCommit).not.toBeNull();
+    expect(failAfterCommit).toBeNull();
+
+    await withPlatformAdmin(() =>
+      db.taxRate.deleteMany({ where: { nombre: { in: [nombreOk, nombreFail] } } }),
+    );
   });
 });
 
