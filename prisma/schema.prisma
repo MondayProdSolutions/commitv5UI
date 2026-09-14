@@ -442,3 +442,75 @@ model AttendanceRecord {
   @@index([fecha])
   @@index([userId, fecha])
 }
+
+// --- Multi-tenant: plataforma ---
+
+enum TenantStatus {
+  PRUEBA
+  ACTIVO
+  SUSPENDIDO
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  maxUsuarios   Int
+  maxSucursales Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tenants       Tenant[]
+}
+
+model Tenant {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  nombre    String
+  estado    TenantStatus @default(PRUEBA)
+  planId    String
+  plan      Plan         @relation(fields: [planId], references: [id])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  fiscalConfig TenantFiscalConfig?
+
+  @@index([estado])
+}
+
+model TenantFiscalConfig {
+  tenantId                String   @id
+  tenant                  Tenant   @relation(fields: [tenantId], references: [id])
+  rfcEmisor               String?
+  razonSocial             String?
+  regimenFiscalCode       String?
+  csdCertificado          Bytes?
+  csdLlaveCifrada         Bytes?
+  csdPasswordCifrada      Bytes?
+  pacProveedor            String?
+  pacCredencialesCifradas Bytes?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  sessions     PlatformAdminSession[]
+}
+
+model PlatformAdminSession {
+  id              String        @id @default(cuid())
+  tokenHash       String        @unique
+  platformAdminId String
+  platformAdmin   PlatformAdmin @relation(fields: [platformAdminId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  expiresAt       DateTime
+  lastActivityAt  DateTime
+  ip              String?
+  userAgent       String?
+  revokedAt       DateTime?
+
+  @@index([platformAdminId])
+  @@index([expiresAt])
+}
