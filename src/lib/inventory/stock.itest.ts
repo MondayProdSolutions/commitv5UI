@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '@/lib/db';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { db, withPlatformAdmin, withTenant } from '@/lib/db';
 import { lowStockVariants, stockAlertsCount, invalidateStockAlertsCache } from './stock';
 import { recordMovement } from './movements';
 
@@ -206,5 +206,61 @@ describe('stockAlertsCount', () => {
     // Cache should have been invalidated by recordMovement
     const count2 = await stockAlertsCount();
     expect(count2).toBe(0); // Stock is now 11, above minimum of 5
+  });
+});
+
+describe('stockAlertsCount aislamiento entre tenants', () => {
+  const SLUG = 'stock-cache-iso';
+
+  async function makeOtherTenant() {
+    const plan = await withPlatformAdmin(() =>
+      db.plan.upsert({
+        where: { nombre: 'Estándar' },
+        update: {},
+        create: { nombre: 'Estándar', maxUsuarios: 10, maxSucursales: 3 },
+      }),
+    );
+    return withPlatformAdmin(() =>
+      db.tenant.upsert({
+        where: { slug: SLUG },
+        update: {},
+        create: { slug: SLUG, nombre: SLUG, estado: 'ACTIVO', planId: plan.id },
+      }),
+    );
+  }
+
+  beforeEach(async () => {
+    await withPlatformAdmin(async () => {
+      await db.taxRate.deleteMany({ where: { tenant: { slug: SLUG } } });
+      await db.tenant.deleteMany({ where: { slug: SLUG } });
+    });
+  });
+  afterAll(async () => {
+    await withPlatformAdmin(async () => {
+      await db.taxRate.deleteMany({ where: { tenant: { slug: SLUG } } });
+      await db.tenant.deleteMany({ where: { slug: SLUG } });
+    });
+  });
+
+  it('el conteo cacheado de un tenant no se filtra al de otro', async () => {
+    const otherTenant = await makeOtherTenant();
+
+    // Tenant ambiente (el de vitest.setup.ts): 1 variante en bajo stock.
+    await seedProduct('DefaultTenantProduct', [{ stock: 1, stockMinimo: 5 }]);
+    const countDefault = await stockAlertsCount();
+    expect(countDefault).toBe(1);
+
+    // Tenant B: sin variantes en bajo stock. Si el cache no estuviera
+    // separado por tenant, esta llamada devolvería el 1 cacheado arriba.
+    const countOther = await withTenant(otherTenant.id, async () => {
+      await db.taxRate.create({ data: { nombre: 'IVA', tasa: 0.16, esDefault: true } });
+      return stockAlertsCount();
+    });
+    expect(countOther).toBe(0);
+
+    // De vuelta en el tenant ambiente: su propio cache sigue intacto (1),
+    // no fue tocado por la lectura del tenant B.
+    const countDefaultAgain = await stockAlertsCount();
+    expect(countDefaultAgain).toBe(1);
   });
 });
