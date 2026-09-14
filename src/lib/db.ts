@@ -15,13 +15,28 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 // DB_POOL_MAX solo lo fija test/vitest.setup.ts (Step 9) — necesario para que
 // `set_config(..., false)` (alcance de sesión, ver __setTestTenantId más abajo)
 // persista de forma confiable: con más de una conexión en el pool, una consulta
-// posterior podría caer en una conexión donde nunca se fijó la variable.
+// posterior podría caer en una conexión donde nunca se fijó la variable. Esa
+// necesidad es específica de `testPool` (más abajo): `rawPrisma` solo abre
+// transacciones con `set_config(..., true)` de alcance de TRANSACCIÓN
+// (SET LOCAL, ver withTenant/withPlatformAdmin/withIndependentTenantTransaction),
+// que no depende de en qué conexión caiga cada una. Además, desde
+// withIndependentTenantTransaction puede haber dos transacciones de rawPrisma
+// activas a la vez en el mismo request de test (la ambiente de withTenant que
+// sigue abierta + la independiente que abre requirePermission antes de
+// lanzar) — con el mismo límite de 1 conexión que testPool, la segunda se
+// quedaría esperando por una conexión que la primera no va a soltar hasta que
+// la segunda termine (interbloqueo). Por eso aquí se exige un piso de 2,
+// aunque DB_POOL_MAX venga en 1; `testPool`, más abajo, sigue leyendo
+// DB_POOL_MAX tal cual porque a él sí le corresponde ese límite de 1.
+const rawPrismaPoolMax = process.env.DB_POOL_MAX
+  ? Math.max(2, Number(process.env.DB_POOL_MAX))
+  : undefined;
 const rawPrisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter: new PrismaPg({
       connectionString,
-      max: process.env.DB_POOL_MAX ? Number(process.env.DB_POOL_MAX) : undefined,
+      max: rawPrismaPoolMax,
     }),
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
@@ -93,6 +108,37 @@ export async function withPlatformAdmin<T>(fn: () => Promise<T>): Promise<T> {
       await tx.$executeRaw`SELECT set_config('app.platform_admin', 'true', true)`;
       await tx.$executeRaw`SET LOCAL ROLE app_role`;
       return storage.run({ tx, tenantId: null }, fn);
+    },
+    { timeout: 15_000 },
+  );
+}
+
+/** Corre `fn(tx)` en una transacción NUEVA e independiente de cualquier
+ *  transacción ambiente ya abierta por el llamador (p. ej. la que withTenant
+ *  dejó activa vía AsyncLocalStorage) — vuelve a fijar el mismo
+ *  `app.tenant_id` + `SET LOCAL ROLE app_role` que withTenant, pero en su
+ *  propia conexión de Postgres tomada del pool, así que hace commit (o
+ *  rollback) por su cuenta sin arrastrar ni depender de la transacción
+ *  ambiente. A diferencia de withTenant, NO llama a `storage.run(...)`: no
+ *  reemplaza el `db` ambiente del llamador, solo entrega el cliente de esta
+ *  transacción nueva directamente a `fn`.
+ *
+ *  Pensado para escrituras que deben sobrevivir aunque el código que las
+ *  dispara termine lanzando y revirtiendo su propia transacción — el caso que
+ *  la motivó es el log de auditoría de un permiso denegado en
+ *  requirePermission (src/lib/auth/context.ts): si usara el `db` ambiente, el
+ *  INSERT quedaría dentro de la misma transacción que el `ForbiddenError` a
+ *  punto de lanzarse revierte, y el registro de auditoría desaparecería en
+ *  silencio junto con ella. */
+export async function withIndependentTenantTransaction<T>(
+  tenantId: string,
+  fn: (tx: TxClient) => Promise<T>,
+): Promise<T> {
+  return rawPrisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+      await tx.$executeRaw`SET LOCAL ROLE app_role`;
+      return fn(tx);
     },
     { timeout: 15_000 },
   );

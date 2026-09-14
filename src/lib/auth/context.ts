@@ -1,5 +1,5 @@
 import { cookies, headers } from 'next/headers';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId, withIndependentTenantTransaction } from '@/lib/db';
 import { SESSION_COOKIE, validateSession } from './session';
 import { getIdleTimeoutMinutes } from '@/lib/settings';
 import { can, type AuthUser, type PermissionKey } from './rbac';
@@ -38,11 +38,22 @@ export async function requirePermission(permiso: PermissionKey): Promise<AuthUse
   const user = await requireUser();
   if (!can(user, permiso)) {
     const h = await headers();
-    await logActivity({
-      actorId: user.id, accion: 'auth.forbidden',
-      metadata: { ruta: h.get('x-pathname') ?? '', permisoRequerido: permiso },
-      ip: getClientIp(h),
-    });
+    // Se escribe en una transacción independiente de la ambiente (ver
+    // withIndependentTenantTransaction en src/lib/db.ts): requirePermission
+    // corre dentro del withTenant(...) que abrió el caller (page/Route
+    // Handler/Server Action), y el ForbiddenError que se lanza abajo revierte
+    // esa transacción. Si este log usara el `db` ambiente, el INSERT se
+    // revertiría con ella y el registro de auditoría desaparecería.
+    await withIndependentTenantTransaction(getCurrentTenantId(), (tx) =>
+      logActivity(
+        {
+          actorId: user.id, accion: 'auth.forbidden',
+          metadata: { ruta: h.get('x-pathname') ?? '', permisoRequerido: permiso },
+          ip: getClientIp(h),
+        },
+        tx,
+      ),
+    );
     const err = new ForbiddenError('FORBIDDEN', 'No tienes permiso para esta acción');
     // The only field that survives to the client error boundary in production.
     (err as Error & { digest?: string }).digest = 'FORBIDDEN';
