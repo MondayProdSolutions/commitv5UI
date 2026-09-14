@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '@/lib/db';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { db, getCurrentTenantId, withPlatformAdmin } from '@/lib/db';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { createSession, validateSession } from '@/lib/auth/session';
 import {
@@ -51,6 +51,66 @@ describe('createUser', () => {
       createUser(
         adminId,
         { nombre: 'X', email: 'admin@pos.com', telefono: null, roleId: await roleId('Cajero') },
+        null,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('createUser — límite de usuarios por plan', () => {
+  let tenantId: string;
+  let originalPlanId: string;
+
+  beforeEach(async () => {
+    tenantId = getCurrentTenantId();
+    originalPlanId = (
+      await withPlatformAdmin(() => db.tenant.findUniqueOrThrow({ where: { id: tenantId } }))
+    ).planId;
+  });
+
+  afterEach(async () => {
+    await withPlatformAdmin(async () => {
+      await db.tenant.update({ where: { id: tenantId }, data: { planId: originalPlanId } });
+      await db.plan.deleteMany({ where: { nombre: { startsWith: 't-plan-limite-' } } });
+    });
+  });
+
+  it('rechaza crear un usuario que excede el límite de usuarios del plan', async () => {
+    // El tenant ya tiene 1 usuario (adminId, sembrado en el beforeEach global).
+    const plan = await withPlatformAdmin(() =>
+      db.plan.create({ data: { nombre: 't-plan-limite-1', maxUsuarios: 1, maxSucursales: 1 } }),
+    );
+    await withPlatformAdmin(() => db.tenant.update({ where: { id: tenantId }, data: { planId: plan.id } }));
+
+    const attempt = createUser(
+      adminId,
+      { nombre: 'Extra', email: 'extra-limite@pos.com', telefono: null, roleId: await roleId('Cajero') },
+      null,
+    );
+    await expect(attempt).rejects.toBeInstanceOf(ValidationError);
+    await expect(attempt).rejects.toMatchObject({ fields: { email: expect.stringContaining('1') } });
+  });
+
+  it('permite crear usuarios hasta el límite exacto del plan; rechaza el siguiente', async () => {
+    // El tenant ya tiene 1 usuario (adminId); un plan con maxUsuarios: 2 permite
+    // exactamente un usuario más.
+    const plan = await withPlatformAdmin(() =>
+      db.plan.create({ data: { nombre: 't-plan-limite-2', maxUsuarios: 2, maxSucursales: 1 } }),
+    );
+    await withPlatformAdmin(() => db.tenant.update({ where: { id: tenantId }, data: { planId: plan.id } }));
+
+    // El 2do usuario (llega justo al límite) debe permitirse.
+    await createUser(
+      adminId,
+      { nombre: 'Segundo', email: 'segundo-limite@pos.com', telefono: null, roleId: await roleId('Cajero') },
+      null,
+    );
+
+    // El 3ro (excede el límite) debe rechazarse.
+    await expect(
+      createUser(
+        adminId,
+        { nombre: 'Tercero', email: 'tercero-limite@pos.com', telefono: null, roleId: await roleId('Cajero') },
         null,
       ),
     ).rejects.toBeInstanceOf(ValidationError);

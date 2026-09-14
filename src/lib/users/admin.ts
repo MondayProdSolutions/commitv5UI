@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { hashPassword, generateTempPassword } from '@/lib/auth/password';
 import { revokeAllForUser } from '@/lib/auth/session';
 import { logActivity } from '@/lib/audit';
@@ -75,6 +75,15 @@ export async function createUser(
   input: CreateUserInput,
   ip: string | null,
 ): Promise<{ userId: string; tempPassword: string }> {
+  const tenantId = getCurrentTenantId();
+  const [plan, usuariosActuales] = await Promise.all([
+    db.tenant.findUniqueOrThrow({ where: { id: tenantId }, include: { plan: true } }).then((t) => t.plan),
+    db.user.count(),
+  ]);
+  if (usuariosActuales >= plan.maxUsuarios) {
+    throw new ValidationError({ email: `Tu plan permite hasta ${plan.maxUsuarios} usuarios` });
+  }
+
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
   try {
