@@ -61,12 +61,24 @@ export const db = new Proxy({} as PrismaClient, {
   },
 }) as unknown as PrismaClient;
 
+// La conexión real de la app (dev y test) abre sesión como "postgres", que en
+// Postgres es superusuario — y un superusuario ignora RLS siempre, sin
+// excepción, sin importar ENABLE/FORCE ROW LEVEL SECURITY (ver el comentario al
+// principio de prisma/migrations/20260914060000_row_level_security/migration.sql).
+// Por eso cada transacción baja de privilegios a "app_role" (rol sin LOGIN
+// creado en esa misma migración, sin superusuario ni BYPASSRLS) antes de correr
+// el callback: así las políticas RLS sí aplican de verdad a cada consulta que
+// pasa por `db`. `SET LOCAL ROLE` solo dura la transacción — se revierte solo al
+// hacer commit/rollback, igual que `set_config(..., true)`. Un superusuario como
+// "postgres" puede hacer SET ROLE a cualquier rol sin necesitar membresía.
+
 /** Corre `fn` con `app.tenant_id` fijado para toda la transacción — RLS y el
  *  DEFAULT de columna de cada tabla dependen de esta variable de sesión. */
 export async function withTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
   return rawPrisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+      await tx.$executeRaw`SET LOCAL ROLE app_role`;
       return storage.run({ tx, tenantId }, fn);
     },
     { timeout: 15_000 },
@@ -79,6 +91,7 @@ export async function withPlatformAdmin<T>(fn: () => Promise<T>): Promise<T> {
   return rawPrisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.platform_admin', 'true', true)`;
+      await tx.$executeRaw`SET LOCAL ROLE app_role`;
       return storage.run({ tx, tenantId: null }, fn);
     },
     { timeout: 15_000 },
