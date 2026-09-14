@@ -19,15 +19,21 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 // necesidad es específica de `testPool` (más abajo): `rawPrisma` solo abre
 // transacciones con `set_config(..., true)` de alcance de TRANSACCIÓN
 // (SET LOCAL, ver withTenant/withPlatformAdmin/withIndependentTenantTransaction),
-// que no depende de en qué conexión caiga cada una. Además, desde
-// withIndependentTenantTransaction puede haber dos transacciones de rawPrisma
-// activas a la vez en el mismo request de test (la ambiente de withTenant que
-// sigue abierta + la independiente que abre requirePermission antes de
-// lanzar) — con el mismo límite de 1 conexión que testPool, la segunda se
-// quedaría esperando por una conexión que la primera no va a soltar hasta que
-// la segunda termine (interbloqueo). Por eso aquí se exige un piso de 2,
-// aunque DB_POOL_MAX venga en 1; `testPool`, más abajo, sigue leyendo
-// DB_POOL_MAX tal cual porque a él sí le corresponde ese límite de 1.
+// que no depende de en qué conexión caiga cada una.
+//
+// El piso de 2 de abajo no es solo cosa de test: cualquier llamada a
+// withIndependentTenantTransaction anidada dentro de un withTenant ambiente
+// todavía abierto (el caso real: requirePermission, ver context.ts) necesita
+// una SEGUNDA conexión mientras la primera sigue tomada — con pool=1 eso es
+// un interbloqueo garantizado, no solo bajo DB_POOL_MAX=1 de test, sino en
+// cualquier despliegue cuyo pool real llegara a 1. En producción, con el pool
+// por defecto (10), esto en cambio es presión, no interbloqueo: basta con que
+// las conexiones libres se agoten un instante para que la transacción
+// independiente tenga que esperar por maxWait antes de conseguir una — por
+// eso esa escritura de auditoría es best-effort (ver el try/catch en
+// requirePermission) y nunca debe poder reemplazar al ForbiddenError real.
+// Aquí simplemente se garantiza el piso mínimo de 2 para que el caso de test
+// (pool=1) no sea peor que el de producción.
 const rawPrismaPoolMax = process.env.DB_POOL_MAX
   ? Math.max(2, Number(process.env.DB_POOL_MAX))
   : undefined;
@@ -129,7 +135,17 @@ export async function withPlatformAdmin<T>(fn: () => Promise<T>): Promise<T> {
  *  requirePermission (src/lib/auth/context.ts): si usara el `db` ambiente, el
  *  INSERT quedaría dentro de la misma transacción que el `ForbiddenError` a
  *  punto de lanzarse revierte, y el registro de auditoría desaparecería en
- *  silencio junto con ella. */
+ *  silencio junto con ella.
+ *
+ *  Ojo al llamarla anidada dentro de un withTenant/withPlatformAdmin ambiente
+ *  todavía abierto: consume una SEGUNDA conexión del pool mientras la
+ *  primera sigue tomada, así que bajo presión puede tener que esperar
+ *  `maxWait` antes de conseguirla. Por eso cualquier caller que la anide así
+ *  debe tratarla como best-effort (try/catch alrededor, sin dejar que un
+ *  fallo aquí reemplace el error real que el caller iba a lanzar) — ver el
+ *  try/catch en requirePermission. `maxWait`/`timeout` se fijan explícitos
+ *  (no se heredan los default de Prisma) para que ese límite quede a la
+ *  vista en vez de implícito. */
 export async function withIndependentTenantTransaction<T>(
   tenantId: string,
   fn: (tx: TxClient) => Promise<T>,
@@ -140,7 +156,7 @@ export async function withIndependentTenantTransaction<T>(
       await tx.$executeRaw`SET LOCAL ROLE app_role`;
       return fn(tx);
     },
-    { timeout: 15_000 },
+    { maxWait: 2_000, timeout: 15_000 },
   );
 }
 
