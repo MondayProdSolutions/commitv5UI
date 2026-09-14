@@ -8,7 +8,7 @@ import { revokeSession, revokeAllForUser } from '@/lib/auth/session';
 import { logActivity } from '@/lib/audit';
 import { getClientIp } from '@/lib/http';
 import { ValidationError } from '@/lib/errors';
-import { withTenant } from '@/lib/db';
+import { db, withTenant } from '@/lib/db';
 import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
@@ -46,7 +46,6 @@ export async function revokeMySessionAction(_prev: FormState, sessionId: string)
     const user = await requireUser();
 
     // Verify the session belongs to this user
-    const { db } = await import('@/lib/db');
     const session = await db.session.findUnique({ where: { id: sessionId } });
     if (!session || session.userId !== user.id) {
       return { ok: false, formError: 'Sesión no encontrada' };

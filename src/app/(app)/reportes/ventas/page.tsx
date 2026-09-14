@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { money, METODO_LABEL } from '@/app/(app)/ventas/types';
 import { PeriodFilterForm } from '../PeriodFilterForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,9 +23,16 @@ function fmtFechaCorta(fecha: string): string {
   });
 }
 
-export default async function ReporteVentasPage(props: {
+type ReporteVentasPageProps = {
   searchParams: Promise<{ atajo?: string; desde?: string; hasta?: string }>;
-}) {
+};
+
+export default async function ReporteVentasPage(props: ReporteVentasPageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderReporteVentasPage(props));
+}
+
+async function renderReporteVentasPage(props: ReporteVentasPageProps) {
   await requirePermission('reportes.ver');
   const sp = await props.searchParams;
   const periodo = resolvePeriod(sp);

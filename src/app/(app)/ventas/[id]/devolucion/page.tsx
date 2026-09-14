@@ -3,12 +3,19 @@ import { notFound } from 'next/navigation';
 import { requirePermission } from '@/lib/auth/context';
 import { getSale } from '@/lib/sales/sales';
 import { ReturnForm } from '../../ReturnForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RegistrarDevolucionPage(props: {
-  params: Promise<{ id: string }>;
-}) {
+type RegistrarDevolucionPageProps = { params: Promise<{ id: string }> };
+
+export default async function RegistrarDevolucionPage(props: RegistrarDevolucionPageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderRegistrarDevolucionPage(props));
+}
+
+async function renderRegistrarDevolucionPage(props: RegistrarDevolucionPageProps) {
   await requirePermission('ventas.devolver');
   const { id } = await props.params;
 

@@ -5,6 +5,8 @@ import { AUDIT_ACTIONS } from '@/lib/activity/actions-catalog';
 import Pagination from '@/components/Pagination';
 import { AuditFilters } from './AuditFilters';
 import { AuditRow } from './AuditRow';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,11 @@ const PAGE_SIZE = 20;
 type SearchParams = { actor?: string; accion?: string; desde?: string; hasta?: string; page?: string };
 
 export default async function AuditoriaPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderAuditoriaPage(props));
+}
+
+async function renderAuditoriaPage(props: { searchParams: Promise<SearchParams> }) {
   await requirePermission('auditoria.ver');
   const sp = await props.searchParams;
 

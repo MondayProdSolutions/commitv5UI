@@ -4,6 +4,8 @@ import { getCurrentUser, requirePermission } from '@/lib/auth/context';
 import { can } from '@/lib/auth/rbac';
 import { permisoParaTipo, type MovementTipo } from '@/lib/inventory/movement-perms';
 import { MovementForm } from './MovementForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +14,11 @@ type SearchParams = { variantId?: string };
 const TODOS_TIPOS = ['ENTRADA', 'SALIDA', 'AJUSTE'] as const satisfies readonly MovementTipo[];
 
 export default async function NuevoMovimientoPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderNuevoMovimientoPage(props));
+}
+
+async function renderNuevoMovimientoPage(props: { searchParams: Promise<SearchParams> }) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 

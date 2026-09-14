@@ -7,12 +7,21 @@ import { Card } from '@/components/ui/Card';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { money, fmtFechaMX } from '@/app/(app)/ventas/types';
 import { PeriodFilterForm } from '../PeriodFilterForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ReporteInventarioPage(props: {
+type ReporteInventarioPageProps = {
   searchParams: Promise<{ atajo?: string; desde?: string; hasta?: string }>;
-}) {
+};
+
+export default async function ReporteInventarioPage(props: ReporteInventarioPageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderReporteInventarioPage(props));
+}
+
+async function renderReporteInventarioPage(props: ReporteInventarioPageProps) {
   await requirePermission('reportes.ver');
   const sp = await props.searchParams;
   const periodo = resolvePeriod(sp);

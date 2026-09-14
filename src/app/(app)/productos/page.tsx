@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/Button';
 import { inputClass } from '@/app/(app)/ventas/types';
 import { flattenCategories } from './categoryOptions';
 import { ProductRow } from './ProductRow';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +67,11 @@ function precioLabel(row: ProductListRow): string {
 }
 
 export default async function ProductosPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderProductosPage(props));
+}
+
+async function renderProductosPage(props: { searchParams: Promise<SearchParams> }) {
   const actor = await requirePermission('productos.ver');
   const sp = await props.searchParams;
 

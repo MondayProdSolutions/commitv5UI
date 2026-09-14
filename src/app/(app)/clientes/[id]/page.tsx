@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { CustomerForm } from '../CustomerForm';
 import { ClienteAdminActions } from '../ClienteAdminActions';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +23,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default async function ClienteDetallePage(props: { params: Promise<{ id: string }> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderClienteDetallePage(props));
+}
+
+async function renderClienteDetallePage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('clientes.ver');
   const { id } = await props.params;
 

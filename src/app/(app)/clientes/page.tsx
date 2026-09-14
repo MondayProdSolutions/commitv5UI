@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { inputClass } from '@/app/(app)/ventas/types';
 import { CustomerRow } from './CustomerRow';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +27,11 @@ function estadoFrom(v: string | undefined): 'activos' | 'archivados' | 'todos' {
 }
 
 export default async function ClientesPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderClientesPage(props));
+}
+
+async function renderClientesPage(props: { searchParams: Promise<SearchParams> }) {
   const actor = await requirePermission('clientes.ver');
   const sp = await props.searchParams;
 

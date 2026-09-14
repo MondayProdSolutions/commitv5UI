@@ -5,10 +5,17 @@ import { getSetting } from '@/lib/settings';
 import { getCashSession } from '@/lib/cash/sessions';
 import { CorteView } from '@/app/(app)/caja/CorteView';
 import { PrintOnMount } from '@/app/(app)/ventas/PrintOnMount';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CajaCortePage(props: { params: Promise<{ id: string }> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderCajaCortePage(props));
+}
+
+async function renderCajaCortePage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('caja.gestionar');
   const { id } = await props.params;
 

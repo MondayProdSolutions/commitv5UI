@@ -3,12 +3,19 @@ import { requirePermission } from '@/lib/auth/context';
 import { listCategoryTree, productsInArchivedCategories } from '@/lib/catalog/categories';
 import { CategoryTree } from './CategoryTree';
 import { CategoryForm } from './CategoryForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 type SearchParams = { archivadas?: string };
 
 export default async function CategoriasPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderCategoriasPage(props));
+}
+
+async function renderCategoriasPage(props: { searchParams: Promise<SearchParams> }) {
   await requirePermission('categorias.gestionar');
   const sp = await props.searchParams;
   const incluirArchivadas = sp.archivadas === '1';

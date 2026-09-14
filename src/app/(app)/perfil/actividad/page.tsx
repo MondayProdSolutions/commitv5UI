@@ -1,6 +1,8 @@
 import { requireUser } from '@/lib/auth/context';
 import { queryActivity, parseDateParam } from '@/lib/activity/query';
 import Pagination from '@/components/Pagination';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,11 @@ function formatDate(date: Date): string {
 }
 
 export default async function ActividadPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderActividadPage(props));
+}
+
+async function renderActividadPage(props: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
   const searchParams = await props.searchParams;
 

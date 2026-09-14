@@ -11,6 +11,8 @@ import {
   RevokeSessionsForm,
   ResetPasswordForm,
 } from '../UserAdminActions';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +26,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default async function UsuarioDetallePage(props: { params: Promise<{ id: string }> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderUsuarioDetallePage(props));
+}
+
+async function renderUsuarioDetallePage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('usuarios.ver');
   const actor = await getCurrentUser();
   const { id } = await props.params;

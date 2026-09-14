@@ -3,6 +3,8 @@ import { requirePermission } from '@/lib/auth/context';
 import { DataTable, type Column } from '@/components/DataTable';
 import Pagination from '@/components/Pagination';
 import { lowStockVariants, type LowStockRow } from '@/lib/inventory/stock';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +39,11 @@ const columns: Column<LowStockRow>[] = [
 ];
 
 export default async function StockBajoPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderStockBajoPage(props));
+}
+
+async function renderStockBajoPage(props: { searchParams: Promise<SearchParams> }) {
   await requirePermission('inventario.ver');
   const sp = await props.searchParams;
 

@@ -8,6 +8,8 @@ import { CajaSessionRow } from '../CajaSessionRow';
 import { money, fmtFechaMX } from '@/app/(app)/ventas/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +47,11 @@ const inputClass =
   'block rounded-control border border-line-strong px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-ring/40';
 
 export default async function HistorialCajaPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderHistorialCajaPage(props));
+}
+
+async function renderHistorialCajaPage(props: { searchParams: Promise<SearchParams> }) {
   await requirePermission('caja.gestionar');
   const sp = await props.searchParams;
 

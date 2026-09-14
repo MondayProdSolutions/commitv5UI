@@ -7,6 +7,8 @@ import Pagination from '@/components/Pagination';
 import { Button } from '@/components/ui/Button';
 import { ReturnRow } from '../ReturnRow';
 import { money, fmtFechaMX } from '../types';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,11 @@ const inputClass =
   'block rounded-control border border-line-strong px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-ring/40';
 
 export default async function DevolucionesPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderDevolucionesPage(props));
+}
+
+async function renderDevolucionesPage(props: { searchParams: Promise<SearchParams> }) {
   await requirePermission('ventas.ver');
   const sp = await props.searchParams;
 

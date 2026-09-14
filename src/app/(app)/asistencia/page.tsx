@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card';
 import { PeriodFilterForm } from '@/app/(app)/reportes/PeriodFilterForm';
 import { AttendanceFilters } from './AttendanceFilters';
 import { CorregirTurnoForm } from './CorregirTurnoForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +26,18 @@ function fmtHora(d: Date): string {
   }).format(d);
 }
 
-export default async function AsistenciaPage(props: {
+type AsistenciaPageProps = {
   searchParams: Promise<{
     atajo?: string; desde?: string; hasta?: string; userId?: string; roleId?: string;
   }>;
-}) {
+};
+
+export default async function AsistenciaPage(props: AsistenciaPageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderAsistenciaPage(props));
+}
+
+async function renderAsistenciaPage(props: AsistenciaPageProps) {
   const actor = await requirePermission('asistencia.ver');
   const sp = await props.searchParams;
   const periodo = resolvePeriod(sp);

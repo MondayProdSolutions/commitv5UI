@@ -6,10 +6,17 @@ import { getIdleTimeoutMinutes } from '@/lib/settings';
 import { db } from '@/lib/db';
 import ProfileForm from './ProfileForm';
 import SessionsList from './SessionsList';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PerfilPage() {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, renderPerfilPage);
+}
+
+async function renderPerfilPage() {
   const user = await requireUser();
 
   const cookieStore = await cookies();
