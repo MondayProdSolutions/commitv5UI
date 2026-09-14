@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { db, withPlatformAdmin, withTenant } from '@/lib/db';
 import { createTenant, listTenants, setTenantEstado } from './tenants';
 import { ValidationError } from '@/lib/errors';
+import { ALL_PERMISSION_KEYS } from '@/lib/auth/rbac';
 
 const SLUG = 't-platform-tenants';
 
@@ -44,6 +45,9 @@ describe('createTenant', () => {
       expect(admin.roleId).toBeTruthy();
       const rolAdmin = await db.role.findUniqueOrThrow({ where: { id: admin.roleId } });
       expect(rolAdmin.nombre).toBe('Administrador');
+
+      const permisos = await db.rolePermission.findMany({ where: { roleId: rolAdmin.id } });
+      expect(permisos.map((p) => p.permiso).sort()).toEqual([...ALL_PERMISSION_KEYS].sort());
     });
   });
 
