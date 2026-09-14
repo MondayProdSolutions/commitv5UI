@@ -6,6 +6,8 @@ import { ValidationError } from '@/lib/errors';
 import { checkIn, checkOut } from '@/lib/attendance/records';
 import { savePhoto } from '@/lib/attendance/photos';
 import { diaKeyMX } from '@/lib/reports/period';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
 const RUTA = '/asistencia/registrar';
@@ -34,27 +36,33 @@ async function fotoPathFrom(
 }
 
 export async function registrarEntradaAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requirePermission('asistencia.registrar');
-  const fotoPath = await fotoPathFrom(formData, actor.id, 'checkin');
-  try {
-    await checkIn({ userId: actor.id, fotoPath });
-  } catch (e) {
-    if (e instanceof ValidationError) return { ok: false, formError: e.message, fieldErrors: e.fields };
-    throw e;
-  }
-  revalidatePath(RUTA);
-  return { ok: true };
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('asistencia.registrar');
+    const fotoPath = await fotoPathFrom(formData, actor.id, 'checkin');
+    try {
+      await checkIn({ userId: actor.id, fotoPath });
+    } catch (e) {
+      if (e instanceof ValidationError) return { ok: false, formError: e.message, fieldErrors: e.fields };
+      throw e;
+    }
+    revalidatePath(RUTA);
+    return { ok: true };
+  });
 }
 
 export async function registrarSalidaAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requirePermission('asistencia.registrar');
-  const fotoPath = await fotoPathFrom(formData, actor.id, 'checkout');
-  try {
-    await checkOut({ userId: actor.id, fotoPath });
-  } catch (e) {
-    if (e instanceof ValidationError) return { ok: false, formError: e.message, fieldErrors: e.fields };
-    throw e;
-  }
-  revalidatePath(RUTA);
-  return { ok: true };
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('asistencia.registrar');
+    const fotoPath = await fotoPathFrom(formData, actor.id, 'checkout');
+    try {
+      await checkOut({ userId: actor.id, fotoPath });
+    } catch (e) {
+      if (e instanceof ValidationError) return { ok: false, formError: e.message, fieldErrors: e.fields };
+      throw e;
+    }
+    revalidatePath(RUTA);
+    return { ok: true };
+  });
 }

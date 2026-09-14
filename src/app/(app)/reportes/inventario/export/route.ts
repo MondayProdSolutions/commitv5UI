@@ -4,6 +4,8 @@ import { ForbiddenError } from '@/lib/errors';
 import { resolvePeriod } from '@/lib/reports/period';
 import { getInventoryReport } from '@/lib/reports/inventario';
 import { fmtFechaMX } from '@/app/(app)/ventas/types';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const runtime = 'nodejs';
 
@@ -12,31 +14,34 @@ const esc = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')
 const HEADER = 'Fecha,Producto,Tipo,Cantidad,Usuario';
 
 export async function GET(req: Request): Promise<NextResponse> {
-  try {
-    await requirePermission('reportes.ver');
-  } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    throw e;
-  }
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    try {
+      await requirePermission('reportes.ver');
+    } catch (e) {
+      if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
+      throw e;
+    }
 
-  const url = new URL(req.url);
-  const periodo = resolvePeriod({
-    atajo: url.searchParams.get('atajo') ?? undefined,
-    desde: url.searchParams.get('desde') ?? undefined,
-    hasta: url.searchParams.get('hasta') ?? undefined,
-  });
-  const r = await getInventoryReport(periodo);
+    const url = new URL(req.url);
+    const periodo = resolvePeriod({
+      atajo: url.searchParams.get('atajo') ?? undefined,
+      desde: url.searchParams.get('desde') ?? undefined,
+      hasta: url.searchParams.get('hasta') ?? undefined,
+    });
+    const r = await getInventoryReport(periodo);
 
-  const lines = r.detalle.map((d) =>
-    [fmtFechaMX(d.fecha), d.producto, d.tipo, String(d.cantidad), d.usuario].map(esc).join(','),
-  );
-  const csv = '﻿' + [HEADER, ...lines].join('\n') + '\n';
-  const fecha = new Date().toISOString().slice(0, 10);
-  return new NextResponse(csv, {
-    status: 200,
-    headers: {
-      'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="reporte-inventario-${fecha}.csv"`,
-    },
+    const lines = r.detalle.map((d) =>
+      [fmtFechaMX(d.fecha), d.producto, d.tipo, String(d.cantidad), d.usuario].map(esc).join(','),
+    );
+    const csv = '﻿' + [HEADER, ...lines].join('\n') + '\n';
+    const fecha = new Date().toISOString().slice(0, 10);
+    return new NextResponse(csv, {
+      status: 200,
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="reporte-inventario-${fecha}.csv"`,
+      },
+    });
   });
 }

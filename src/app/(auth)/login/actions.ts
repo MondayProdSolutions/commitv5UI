@@ -6,18 +6,28 @@ import { loginSchema } from '@/lib/validation/auth';
 import { attemptLogin } from '@/lib/auth/login';
 import { SESSION_COOKIE, SESSION_TTL_MS } from '@/lib/auth/session';
 import { getClientIp } from '@/lib/http';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
 export async function loginAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, formError: 'Credenciales inválidas' };
 
-  const h = await headers();
-  const r = await attemptLogin({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    ip: getClientIp(h),
-    userAgent: h.get('user-agent'),
+  // `attemptLogin` toca `db` (rate limiting, búsqueda de usuario, creación de
+  // sesión) — corre dentro de `withTenant` y termina (commit) antes de la
+  // cookie/redirect de abajo, para no arriesgar un rollback de la sesión recién
+  // creada si `redirect()` (que lanza internamente) quedara dentro de la misma
+  // transacción.
+  const tenantId = await requireRequestTenantId();
+  const r = await withTenant(tenantId, async () => {
+    const h = await headers();
+    return attemptLogin({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      ip: getClientIp(h),
+      userAgent: h.get('user-agent'),
+    });
   });
 
   if (!r.ok) {

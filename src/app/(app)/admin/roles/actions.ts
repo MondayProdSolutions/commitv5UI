@@ -8,6 +8,8 @@ import { getClientIp } from '@/lib/http';
 import { ValidationError } from '@/lib/errors';
 import { roleSchema } from '@/lib/validation/role';
 import { createRole, updateRole, deleteRole } from '@/lib/roles/admin';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
 export type RoleActionState = FormState & { id?: string };
@@ -40,62 +42,71 @@ export async function createRoleAction(
   _prev: RoleActionState,
   formData: FormData,
 ): Promise<RoleActionState> {
-  const actor = await requirePermission('roles.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('roles.gestionar');
 
-  const parsed = parseRole(formData);
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+    const parsed = parseRole(formData);
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
-  try {
-    const ip = getClientIp(await headers());
-    const { id } = await createRole(actor.id, parsed.data, ip);
-    revalidatePath(ROLES_PATH);
-    return { ok: true, id };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      const ip = getClientIp(await headers());
+      const { id } = await createRole(actor.id, parsed.data, ip);
+      revalidatePath(ROLES_PATH);
+      return { ok: true, id };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }
 
 export async function updateRoleAction(
   _prev: RoleActionState,
   formData: FormData,
 ): Promise<RoleActionState> {
-  const actor = await requirePermission('roles.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('roles.gestionar');
 
-  const id = String(formData.get('id') ?? '');
-  if (!id) return { ok: false, formError: 'Rol no válido.' };
+    const id = String(formData.get('id') ?? '');
+    if (!id) return { ok: false, formError: 'Rol no válido.' };
 
-  const parsed = parseRole(formData);
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+    const parsed = parseRole(formData);
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
-  try {
-    const ip = getClientIp(await headers());
-    await updateRole(actor.id, id, parsed.data, ip);
-    revalidatePath(ROLES_PATH);
-    revalidatePath(`${ROLES_PATH}/${id}`);
-    return { ok: true, id };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      const ip = getClientIp(await headers());
+      await updateRole(actor.id, id, parsed.data, ip);
+      revalidatePath(ROLES_PATH);
+      revalidatePath(`${ROLES_PATH}/${id}`);
+      return { ok: true, id };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }
 
 export async function deleteRoleAction(
   _prev: RoleActionState,
   formData: FormData,
 ): Promise<RoleActionState> {
-  const actor = await requirePermission('roles.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('roles.gestionar');
 
-  const id = String(formData.get('id') ?? '');
-  if (!id) return { ok: false, formError: 'Rol no válido.' };
+    const id = String(formData.get('id') ?? '');
+    if (!id) return { ok: false, formError: 'Rol no válido.' };
 
-  try {
-    const ip = getClientIp(await headers());
-    await deleteRole(actor.id, id, ip);
-    revalidatePath(ROLES_PATH);
-    return { ok: true };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      const ip = getClientIp(await headers());
+      await deleteRole(actor.id, id, ip);
+      revalidatePath(ROLES_PATH);
+      return { ok: true };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }

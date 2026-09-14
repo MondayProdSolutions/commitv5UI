@@ -14,6 +14,8 @@ import {
   archiveCustomer,
   restoreCustomer,
 } from '@/lib/customers/customers';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
 const CLIENTES_PATH = '/clientes';
@@ -54,80 +56,97 @@ function readCustomerFields(formData: FormData) {
 }
 
 export async function crearClienteAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requirePermission('clientes.crear');
+  // `createCustomer` es una escritura; corre dentro de `withTenant` y el
+  // `redirect()` va después de que la transacción ya hizo commit (ver la nota
+  // en `caja/actions.ts`).
+  const tenantId = await requireRequestTenantId();
+  const result = await withTenant(tenantId, async (): Promise<FormState | { redirectId: string }> => {
+    const actor = await requirePermission('clientes.crear');
 
-  const parsed = customerSchema.safeParse(readCustomerFields(formData));
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+    const parsed = customerSchema.safeParse(readCustomerFields(formData));
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
-  let newId: string;
-  try {
-    const { id } = await createCustomer(actor.id, parsed.data, await ip());
-    newId = id;
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
+    try {
+      const { id } = await createCustomer(actor.id, parsed.data, await ip());
+      return { redirectId: id };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
+
+  if ('redirectId' in result) {
+    revalidatePath(CLIENTES_PATH);
+    redirect(idPath(result.redirectId));
   }
-
-  revalidatePath(CLIENTES_PATH);
-  redirect(idPath(newId));
+  return result;
 }
 
 export async function editarClienteAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requirePermission('clientes.editar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('clientes.editar');
 
-  const parsed = editCustomerSchema.safeParse({
-    id: formData.get('id'),
-    ...readCustomerFields(formData),
+    const parsed = editCustomerSchema.safeParse({
+      id: formData.get('id'),
+      ...readCustomerFields(formData),
+    });
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+
+    try {
+      await updateCustomer(actor.id, parsed.data.id, parsed.data, await ip());
+      revalidatePath(CLIENTES_PATH);
+      revalidatePath(idPath(parsed.data.id));
+      return { ok: true };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
   });
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
-
-  try {
-    await updateCustomer(actor.id, parsed.data.id, parsed.data, await ip());
-    revalidatePath(CLIENTES_PATH);
-    revalidatePath(idPath(parsed.data.id));
-    return { ok: true };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
 }
 
 export async function archivarClienteAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const actor = await requirePermission('clientes.archivar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('clientes.archivar');
 
-  const id = String(formData.get('id') ?? '');
-  if (!id) return { ok: false, formError: 'Cliente no válido.' };
+    const id = String(formData.get('id') ?? '');
+    if (!id) return { ok: false, formError: 'Cliente no válido.' };
 
-  try {
-    await archiveCustomer(actor.id, id, await ip());
-    revalidatePath(CLIENTES_PATH);
-    revalidatePath(idPath(id));
-    return { ok: true };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      await archiveCustomer(actor.id, id, await ip());
+      revalidatePath(CLIENTES_PATH);
+      revalidatePath(idPath(id));
+      return { ok: true };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }
 
 export async function restaurarClienteAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const actor = await requirePermission('clientes.archivar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('clientes.archivar');
 
-  const id = String(formData.get('id') ?? '');
-  if (!id) return { ok: false, formError: 'Cliente no válido.' };
+    const id = String(formData.get('id') ?? '');
+    if (!id) return { ok: false, formError: 'Cliente no válido.' };
 
-  try {
-    await restoreCustomer(actor.id, id, await ip());
-    revalidatePath(CLIENTES_PATH);
-    revalidatePath(idPath(id));
-    return { ok: true };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      await restoreCustomer(actor.id, id, await ip());
+      revalidatePath(CLIENTES_PATH);
+      revalidatePath(idPath(id));
+      return { ok: true };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }
