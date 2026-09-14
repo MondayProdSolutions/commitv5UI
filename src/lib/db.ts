@@ -118,6 +118,14 @@ export function getCurrentTenantId(): string {
 // ese hueco de raíz: reaplica `app.tenant_id` en CUALQUIER conexión física nueva que
 // abra este pool, incluidas las de reemplazo, en vez de parchar cada sitio de
 // llamada que resulte afectado.
+// También baja a `app_role` en cada conexión física nueva (`SET ROLE`, alcance
+// de SESIÓN — no hay una transacción envolviendo estas consultas, así que
+// `SET LOCAL ROLE` como en withTenant/withPlatformAdmin no serviría de nada,
+// se revertiría antes de la siguiente consulta). Sin esto, los ~58 archivos
+// *.itest.ts que dependen del tenant ambiente de __setTestTenantId (en vez de
+// envolver cada test en withTenant/withPlatformAdmin) correrían como
+// "postgres" — superusuario, RLS inerte para ellos — y las políticas de Task 3
+// quedarían sin ejercitar fuera de db.itest.ts/db-isolation.itest.ts.
 let testPool: Pool | null = null;
 let testPoolPrisma: PrismaClient | null = null;
 
@@ -128,6 +136,20 @@ function getTestPoolPrisma(): PrismaClient {
       max: process.env.DB_POOL_MAX ? Number(process.env.DB_POOL_MAX) : undefined,
     });
     testPool.on('connect', (client) => {
+      // Las dos llamadas van seguidas, sin `await` entre ellas: pg encola cada
+      // `.query()` en el cliente en el mismo orden en que se llama, de forma
+      // síncrona, antes de que el event loop pueda ceder el control a quien
+      // esté esperando esta conexión — así queda garantizado que SET ROLE y
+      // set_config se ejecutan, en ese orden, antes que cualquier consulta real
+      // que dispare esta reconexión. (Se probó una variante con `await` entre
+      // ambas llamadas: abre una ventana real entre ellas donde esa consulta
+      // real puede colarse ya con el rol nuevo pero sin `app.tenant_id` fijado
+      // — RLS entonces no deja ver ninguna fila, deleteMany() no borra nada en
+      // silencio, y una limpieza de test posterior falla por FK huérfana. Se
+      // confirmó reproduciendo la falla y revirtiendo a esta versión síncrona.)
+      client.query('SET ROLE app_role').catch((err: unknown) => {
+        console.error('__setTestTenantId: no se pudo bajar a app_role tras un reconnect', err);
+      });
       const tenantId = testFallbackStore?.tenantId;
       if (tenantId) {
         client
