@@ -3,6 +3,8 @@ import { SESSION_COOKIE, validateSession } from '@/lib/auth/session';
 import { getIdleTimeoutMinutes } from '@/lib/settings';
 import { loadAuthUser } from '@/lib/auth/context';
 import { decideRedirect } from '@/lib/auth/middleware-decide';
+import { resolveTenantSlug } from '@/lib/tenant/resolve';
+import { withPlatformAdmin, db } from '@/lib/db';
 
 // Next 16 renamed the `middleware` convention to `proxy` and runs it on the
 // Node.js runtime unconditionally (the `runtime` segment config is rejected
@@ -23,6 +25,23 @@ export async function proxy(req: NextRequest) {
     res.headers.set('x-pathname', pathname);
     return res;
   };
+
+  // Resolución de tenant por subdominio (Host header). No aplica a rutas
+  // ignoradas (assets, health, sesión) — esas no necesitan una consulta a DB.
+  const host = req.headers.get('host') ?? '';
+  const slug = resolveTenantSlug(host);
+
+  if (slug && !IGNORE.some((re) => re.test(pathname))) {
+    const tenant = await withPlatformAdmin(() => db.tenant.findUnique({ where: { slug } }));
+    if (!tenant) {
+      return NextResponse.rewrite(new URL('/tenant-no-encontrado', req.url));
+    }
+    if (tenant.estado === 'SUSPENDIDO') {
+      return NextResponse.rewrite(new URL('/tenant-suspendido', req.url));
+    }
+    requestHeaders.set('x-tenant-id', tenant.id);
+    requestHeaders.set('x-tenant-slug', tenant.slug);
+  }
 
   if (IGNORE.some((re) => re.test(pathname))) return pass();
 
