@@ -2,7 +2,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { db, withPlatformAdmin } from '@/lib/db';
 
 export const PLATFORM_SESSION_COOKIE = 'platform_session';
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 horas — sesión de trabajo de soporte, no de POS
+export const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 horas — sesión de trabajo de soporte, no de POS
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');

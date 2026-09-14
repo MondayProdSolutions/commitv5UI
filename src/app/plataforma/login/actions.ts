@@ -2,9 +2,8 @@
 
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { db, withPlatformAdmin } from '@/lib/db';
-import { verifyPassword } from '@/lib/platform-auth/password';
-import { createPlatformSession, PLATFORM_SESSION_COOKIE } from '@/lib/platform-auth/session';
+import { attemptPlatformLogin } from '@/lib/platform-auth/login';
+import { PLATFORM_SESSION_COOKIE, SESSION_TTL_MS } from '@/lib/platform-auth/session';
 import { getClientIp } from '@/lib/http';
 
 export type PlatformLoginState = { ok: boolean; error?: string };
@@ -16,23 +15,30 @@ export async function platformLoginAction(
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
 
-  const admin = await withPlatformAdmin(() => db.platformAdmin.findUnique({ where: { email } }));
-  if (!admin || !(await verifyPassword(admin.passwordHash, password))) {
-    return { ok: false, error: 'Correo o contraseña incorrectos' };
-  }
-
   const h = await headers();
-  const { token, expiresAt } = await createPlatformSession(admin.id, {
+  const r = await attemptPlatformLogin({
+    email,
+    password,
     ip: getClientIp(h),
     userAgent: h.get('user-agent'),
   });
 
-  (await cookies()).set(PLATFORM_SESSION_COOKIE, token, {
+  if (!r.ok) {
+    return {
+      ok: false,
+      error:
+        r.reason === 'rate_limited'
+          ? `Demasiados intentos. Inténtalo de nuevo en ${Math.ceil((r.retryAfterSec ?? 0) / 60)} min.`
+          : 'Correo o contraseña incorrectos',
+    };
+  }
+
+  (await cookies()).set(PLATFORM_SESSION_COOKIE, r.token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: true,
     sameSite: 'lax',
-    expires: expiresAt,
     path: '/',
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
 
   redirect('/plataforma');

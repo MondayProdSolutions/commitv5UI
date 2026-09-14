@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { db, withPlatformAdmin, withTenant } from '@/lib/db';
-import { hashPassword } from './password';
 import { createPlatformSession, validatePlatformSession } from './session';
 
 const EMAIL = 't-platform-session@tuapp.com';
