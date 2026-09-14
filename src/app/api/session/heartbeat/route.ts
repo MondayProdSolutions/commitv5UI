@@ -3,6 +3,8 @@ import { SESSION_COOKIE, touchSession, validateSession } from '@/lib/auth/sessio
 import { getIdleTimeoutMinutes } from '@/lib/settings';
 import { assertSameOrigin } from '@/lib/http';
 import { ForbiddenError } from '@/lib/errors';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const runtime = 'nodejs';
 
@@ -15,12 +17,15 @@ export async function POST(req: Request) {
     if (e instanceof ForbiddenError) return NextResponse.json({ ok: false }, { status: 403 });
     throw e;
   }
-  const token = req.headers.get('cookie')?.match(COOKIE_RE)?.[1];
-  const idleTimeoutMinutes = await getIdleTimeoutMinutes();
-  const vs = await validateSession(token, idleTimeoutMinutes);
-  if (vs.status !== 'ok') {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-  await touchSession(token!);
-  return NextResponse.json({ ok: true, idleTimeoutMinutes });
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const token = req.headers.get('cookie')?.match(COOKIE_RE)?.[1];
+    const idleTimeoutMinutes = await getIdleTimeoutMinutes();
+    const vs = await validateSession(token, idleTimeoutMinutes);
+    if (vs.status !== 'ok') {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+    await touchSession(token!);
+    return NextResponse.json({ ok: true, idleTimeoutMinutes });
+  });
 }

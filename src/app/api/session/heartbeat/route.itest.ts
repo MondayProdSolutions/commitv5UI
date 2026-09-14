@@ -1,8 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { hashPassword } from '@/lib/auth/password';
 import { createSession, hashToken } from '@/lib/auth/session';
+
+const tenantHeader = { id: '' };
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ 'x-tenant-id': tenantHeader.id }),
+}));
 import { POST } from './route';
+
+beforeAll(async () => {
+  tenantHeader.id = (await db.tenant.findFirstOrThrow({ where: { slug: 'default' } })).id;
+});
 
 async function makeSession() {
   const role = await db.role.findFirstOrThrow({ where: { nombre: 'Cajero' } });

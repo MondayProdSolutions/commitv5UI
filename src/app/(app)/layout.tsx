@@ -6,10 +6,17 @@ import { getIdleTimeoutMinutes } from '@/lib/settings';
 import { Sidebar } from '@/components/Sidebar';
 import { Topbar } from '@/components/Topbar';
 import { InactivityWatcher } from '@/components/InactivityWatcher';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderAppLayout(children));
+}
+
+async function renderAppLayout(children: ReactNode) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 

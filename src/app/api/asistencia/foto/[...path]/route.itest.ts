@@ -1,15 +1,20 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { createSession } from '@/lib/auth/session';
 import { savePhoto } from '@/lib/attendance/photos';
 import { seedUser, cleanupAttendance } from '@/lib/attendance/__testutil';
 
 const cookieStore = { value: undefined as string | undefined };
+const tenantHeader = { id: '' };
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => (cookieStore.value ? { value: cookieStore.value } : undefined) }),
-  headers: async () => new Headers(),
+  headers: async () => new Headers({ 'x-tenant-id': tenantHeader.id }),
 }));
 import { GET } from './route';
+
+beforeAll(async () => {
+  tenantHeader.id = (await db.tenant.findFirstOrThrow({ where: { slug: 'default' } })).id;
+});
 
 const EMAIL_DUENO = 't7-foto-dueno@pos.com';
 const EMAIL_OTRO = 't7-foto-otro@pos.com';
