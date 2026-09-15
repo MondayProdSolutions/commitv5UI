@@ -1,6 +1,7 @@
 import { db, withPlatformAdmin, withTenant } from '@/lib/db';
 import { ValidationError } from '@/lib/errors';
 import { hashPassword, passwordPolicyError } from '@/lib/auth/password';
+import { requirePlatformAdmin } from '@/lib/platform-auth/context';
 
 export type TenantSummary = {
   id: string;
@@ -22,6 +23,7 @@ export type CreateTenantInput = {
 };
 
 export async function listTenants(): Promise<TenantSummary[]> {
+  await requirePlatformAdmin();
   return withPlatformAdmin(async () => {
     const tenants = await db.tenant.findMany({ include: { plan: true }, orderBy: { createdAt: 'desc' } });
     return tenants.map((t) => ({
@@ -35,6 +37,7 @@ export async function listTenants(): Promise<TenantSummary[]> {
 }
 
 export async function createTenant(input: CreateTenantInput): Promise<{ tenantId: string }> {
+  await requirePlatformAdmin();
   const policyError = passwordPolicyError(input.adminPassword, input.adminEmail);
   if (policyError) throw new ValidationError({ adminPassword: policyError });
 
@@ -77,5 +80,6 @@ export async function createTenant(input: CreateTenantInput): Promise<{ tenantId
 }
 
 export async function setTenantEstado(tenantId: string, estado: TenantStatus): Promise<void> {
+  await requirePlatformAdmin();
   await withPlatformAdmin(() => db.tenant.update({ where: { id: tenantId }, data: { estado } }));
 }
