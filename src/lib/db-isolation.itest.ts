@@ -73,3 +73,43 @@ describe('aislamiento entre tenants', () => {
     });
   });
 });
+
+describe('catálogo de RLS: cada tabla con tenantId tiene RLS forzado y al menos una política', () => {
+  // Guardia de regresión (Task 3 / revisión final): la única capa que filtra
+  // los SELECT de las 21 tablas de negocio es RLS — el Proxy `db` de
+  // src/lib/db.ts no inyecta ningún `where` de tenant. Si una migración futura
+  // agrega una tabla con columna `tenantId` y olvida ENABLE+FORCE ROW LEVEL
+  // SECURITY y una política, esa tabla queda expuesta entre tenants en
+  // silencio, sin que nada lo detecte — hasta este test. Se consulta el
+  // catálogo de Postgres directamente (pg_class/pg_attribute/pg_policies), no
+  // el schema de Prisma, para que la prueba refleje lo que el servidor
+  // realmente aplica.
+  it('ninguna tabla con columna tenantId carece de RLS forzado + política', async () => {
+    // Nota: el callback de withPlatformAdmin debe ser `async` y usar `await`
+    // sobre la consulta cruda explícitamente (no basta con devolver la Promise
+    // directamente) — de lo contrario Prisma puede cerrar/commitear la
+    // transacción interactiva antes de que la consulta cruda llegue a
+    // despacharse, y falla con "Transaction API error: Transaction not
+        // found". Se confirmó con una reproducción mínima. Las llamadas a
+    // modelos (db.tenant.findMany, etc.) no sufren esto.
+    const filas = await withPlatformAdmin(async () => {
+      return await db.$queryRawUnsafe<{ relname: string }[]>(`
+        SELECT c.relname FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid
+        WHERE a.attname = 'tenantId' AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped
+          AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity
+               OR NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.tablename = c.relname));
+      `);
+    });
+    expect(filas).toEqual([]);
+  });
+
+  it('sanity: la consulta sí encuentra al menos una tabla con tenantId (no está vacía por error)', async () => {
+    const filas = await withPlatformAdmin(async () => {
+      return await db.$queryRawUnsafe<{ relname: string }[]>(`
+        SELECT c.relname FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid
+        WHERE a.attname = 'tenantId' AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped;
+      `);
+    });
+    expect(filas.length).toBeGreaterThanOrEqual(21);
+  });
+});
