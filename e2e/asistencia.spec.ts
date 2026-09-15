@@ -84,7 +84,10 @@ test('Marcar entrada y salida con cámara simulada guarda fotos y calcula horas'
     await ctx.close();
   }
 
+  // El dashboard vive en /reportes/asistencia; /asistencia se conserva solo
+  // como redirect (no debe romper enlaces/favoritos existentes a la ruta vieja).
   await page.goto('/asistencia?atajo=hoy');
+  await expect(page).toHaveURL(/\/reportes\/asistencia\?atajo=hoy/);
   // El nombre del empleado también aparece en el <select> de filtros y en la
   // tabla "Horas trabajadas por empleado" — se acota a la tarjeta de la
   // galería de "Registros de hoy" para evitar una violación de strict mode.

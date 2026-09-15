@@ -1151,7 +1151,7 @@ Llevar control del horario real trabajado por cada empleado sin depender de un r
 | Acción | Permiso | Roles de sistema con acceso |
 |---|---|---|
 | Registrar la propia entrada/salida (`/asistencia/registrar`) | `asistencia.registrar` | Administrador, Gerente, Cajero, Empleado (todos) |
-| Ver el dashboard de asistencia (`/asistencia`) | `asistencia.ver` | Administrador, Gerente |
+| Ver el dashboard de asistencia (`/reportes/asistencia`) | `asistencia.ver` | Administrador, Gerente |
 | Cerrar/corregir manualmente un turno | `asistencia.corregir` | Administrador |
 
 ### Información que maneja
@@ -1162,7 +1162,7 @@ Llevar control del horario real trabajado por cada empleado sin depender de un r
 ### Acciones que permite
 
 - Marcar entrada y marcar salida desde `/asistencia/registrar`, con o sin foto.
-- Ver el dashboard en `/asistencia`: gráfica de llegadas por hora, tabla de horas por empleado, galería de fotos de los registros de hoy y lista de turnos abiertos, todo filtrable por período, empleado y rol.
+- Ver el dashboard en `/reportes/asistencia` (dentro del módulo de Reportes, como una tarjeta más — no tiene ítem propio en la barra lateral): gráfica de llegadas por hora, tabla de horas por empleado, galería de fotos de los registros de hoy y lista de turnos abiertos, todo filtrable por período, empleado y rol. La ruta anterior `/asistencia` sigue funcionando como redirect permanente.
 - Cerrar manualmente un turno abandonado desde la sección “Turnos abiertos en el período” — funciona para cualquier día dentro del período visible, no solo hoy.
 
 ### Qué valida

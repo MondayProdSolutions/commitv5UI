@@ -25,6 +25,7 @@ const REPORTES = [
 export default async function ReportesPage() {
   const actor = await requirePermission('reportes.ver');
   const verMargen = can(actor, 'reportes.margen');
+  const verAsistencia = can(actor, 'asistencia.ver');
 
   return (
     <div className="space-y-6">
@@ -51,6 +52,17 @@ export default async function ReportesPage() {
             <h2 className="text-lg font-semibold text-ink">Utilidad / margen</h2>
             <p className="mt-1 text-sm text-ink-muted">
               Ganancia bruta por producto, usando el costo actual.
+            </p>
+          </Link>
+        ) : null}
+        {verAsistencia ? (
+          <Link
+            href="/reportes/asistencia"
+            className="rounded-card border border-line bg-surface p-5 shadow-sm hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <h2 className="text-lg font-semibold text-ink">Asistencia</h2>
+            <p className="mt-1 text-sm text-ink-muted">
+              Llegadas por hora, horas por empleado, turnos abiertos y galería de fotos.
             </p>
           </Link>
         ) : null}

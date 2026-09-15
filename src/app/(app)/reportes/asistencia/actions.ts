@@ -25,6 +25,6 @@ export async function corregirRegistroAction(_prev: FormState, formData: FormDat
     if (e instanceof ValidationError) return { ok: false, formError: e.message, fieldErrors: e.fields };
     throw e;
   }
-  revalidatePath('/asistencia');
+  revalidatePath('/reportes/asistencia');
   return { ok: true };
 }

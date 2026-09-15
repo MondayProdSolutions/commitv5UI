@@ -16,7 +16,7 @@ export function AttendanceFilters({
   return (
     <form
       method="get"
-      action="/asistencia"
+      action="/reportes/asistencia"
       className="flex flex-wrap items-end gap-3 rounded-card border border-line bg-surface p-4"
     >
       {current.atajo ? <input type="hidden" name="atajo" value={current.atajo} /> : null}
@@ -52,7 +52,7 @@ export function AttendanceFilters({
             if (current.desde) params.set('desde', current.desde);
             if (current.hasta) params.set('hasta', current.hasta);
             const qs = params.toString();
-            return `/asistencia${qs ? `?${qs}` : ''}`;
+            return `/reportes/asistencia${qs ? `?${qs}` : ''}`;
           })()}
           className="px-2 py-2 text-sm text-ink-subtle hover:text-ink"
         >

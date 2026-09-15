@@ -906,7 +906,7 @@ Este bloque cubre el registro de entrada y salida de los empleados, y el panel d
 
 **Quién puede:** Administrador, Gerente.
 
-1. En el menú, entra a **Asistencia**.
+1. En el menú, entra a **Reportes** y elige la tarjeta **Asistencia** (o ve directamente a `/reportes/asistencia`).
 2. Usa el **selector de período** y, si quieres, los filtros de **empleado** y **rol** para acotar lo que ves.
 3. Revisa la información de arriba hacia abajo:
    - **Turnos abiertos en el período**: empleados que marcaron entrada pero todavía no tienen salida registrada.

@@ -60,4 +60,14 @@ describe('visibleNav', () => {
     expect(hrefs).toContain('/productos');
     expect(hrefs).not.toContain('/inventario');
   });
+  it('el dashboard de asistencia (/asistencia) ya no es un ítem de la barra lateral — vive dentro de Reportes', () => {
+    const hrefs = NAV_ITEMS.map((i) => i.href);
+    expect(hrefs).not.toContain('/asistencia');
+  });
+  it('visibleNav incluye /asistencia/registrar con asistencia.registrar', () => {
+    expect(visibleNav(user(['asistencia.registrar'])).some((i) => i.href === '/asistencia/registrar')).toBe(true);
+  });
+  it('visibleNav excluye /asistencia/registrar sin asistencia.registrar', () => {
+    expect(visibleNav(user([])).some((i) => i.href === '/asistencia/registrar')).toBe(false);
+  });
 });
