@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { isBootstrapNeeded, createFirstAdmin } from './bootstrap';
 import { verifyPassword } from './password';
 import { ValidationError } from '@/lib/errors';
@@ -31,7 +31,7 @@ describe('bootstrap', () => {
 
   it('no duplica el rol Administrador (upsert defensivo)', async () => {
     await db.role.upsert({
-      where: { nombre: 'Administrador' },
+      where: { tenantId_nombre: { tenantId: getCurrentTenantId(), nombre: 'Administrador' } },
       update: {},
       create: { nombre: 'Administrador', esSistema: true, descripcion: 'Rol de sistema: Administrador' },
     });

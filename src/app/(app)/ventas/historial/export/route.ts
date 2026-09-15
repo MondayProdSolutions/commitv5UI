@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/context';
 import { ForbiddenError } from '@/lib/errors';
 import { parseDateParam } from '@/lib/activity/query';
-import { db } from '@/lib/db';
+import { db, withTenant } from '@/lib/db';
 import { listSales, type SaleRow } from '@/lib/sales/sales';
 import { fmtFechaMX } from '../../types';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const runtime = 'nodejs';
 
@@ -47,61 +48,64 @@ function toCsv(rows: SaleRow[], extra: Map<string, Extra>): string {
 }
 
 export async function GET(req: Request) {
-  try {
-    await requirePermission('ventas.ver');
-  } catch (e) {
-    if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
-    throw e;
-  }
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    try {
+      await requirePermission('ventas.ver');
+    } catch (e) {
+      if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });
+      throw e;
+    }
 
-  const url = new URL(req.url);
-  const rawEstado = url.searchParams.get('estado') ?? undefined;
-  const estado =
-    rawEstado === 'COMPLETADA' || rawEstado === 'CANCELADA' ? rawEstado : undefined;
+    const url = new URL(req.url);
+    const rawEstado = url.searchParams.get('estado') ?? undefined;
+    const estado =
+      rawEstado === 'COMPLETADA' || rawEstado === 'CANCELADA' ? rawEstado : undefined;
 
-  const { rows } = await listSales({
-    q: url.searchParams.get('q')?.trim() || undefined,
-    estado,
-    cajeroId: url.searchParams.get('cajero')?.trim() || undefined,
-    desde: parseDateParam(url.searchParams.get('desde')),
-    hasta: parseDateParam(url.searchParams.get('hasta')),
-    page: 1,
-    pageSize: 5000,
-  });
+    const { rows } = await listSales({
+      q: url.searchParams.get('q')?.trim() || undefined,
+      estado,
+      cajeroId: url.searchParams.get('cajero')?.trim() || undefined,
+      desde: parseDateParam(url.searchParams.get('desde')),
+      hasta: parseDateParam(url.searchParams.get('hasta')),
+      page: 1,
+      pageSize: 5000,
+    });
 
-  // `SaleRow` no trae subtotal/descuentos/IVA ni métodos de pago: se recuperan
-  // en una sola consulta y se mapean por id.
-  const detalles = await db.sale.findMany({
-    where: { id: { in: rows.map((r) => r.id) } },
-    select: {
-      id: true,
-      subtotal: true,
-      descuentoLineas: true,
-      descuentoTicket: true,
-      impuestos: true,
-      payments: { select: { metodo: true } },
-    },
-  });
+    // `SaleRow` no trae subtotal/descuentos/IVA ni métodos de pago: se recuperan
+    // en una sola consulta y se mapean por id.
+    const detalles = await db.sale.findMany({
+      where: { id: { in: rows.map((r) => r.id) } },
+      select: {
+        id: true,
+        subtotal: true,
+        descuentoLineas: true,
+        descuentoTicket: true,
+        impuestos: true,
+        payments: { select: { metodo: true } },
+      },
+    });
 
-  const extra = new Map(
-    detalles.map((d) => [
-      d.id,
-      {
-        subtotal: Number(d.subtotal),
-        descuentos: Number(d.descuentoLineas) + Number(d.descuentoTicket),
-        impuestos: Number(d.impuestos),
-        metodos: [...new Set(d.payments.map((p) => p.metodo))].join('; '),
-      } satisfies Extra,
-    ]),
-  );
+    const extra = new Map(
+      detalles.map((d) => [
+        d.id,
+        {
+          subtotal: Number(d.subtotal),
+          descuentos: Number(d.descuentoLineas) + Number(d.descuentoTicket),
+          impuestos: Number(d.impuestos),
+          metodos: [...new Set(d.payments.map((p) => p.metodo))].join('; '),
+        } satisfies Extra,
+      ]),
+    );
 
-  const csv = '﻿' + toCsv(rows, extra);
-  const fecha = new Date().toISOString().slice(0, 10);
-  return new NextResponse(csv, {
-    status: 200,
-    headers: {
-      'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="ventas-${fecha}.csv"`,
-    },
+    const csv = '﻿' + toCsv(rows, extra);
+    const fecha = new Date().toISOString().slice(0, 10);
+    return new NextResponse(csv, {
+      status: 200,
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="ventas-${fecha}.csv"`,
+      },
+    });
   });
 }

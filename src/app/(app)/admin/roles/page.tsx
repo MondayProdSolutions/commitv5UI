@@ -4,6 +4,8 @@ import { listRoles, type RoleRow } from '@/lib/roles/admin';
 import { DataTable, type Column } from '@/components/DataTable';
 import { PermissionGate } from '@/components/PermissionGate';
 import { Badge } from '@/components/ui/Badge';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,11 @@ function SistemaBadge({ esSistema }: { esSistema: boolean }) {
 }
 
 export default async function RolesPage() {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, renderRolesPage);
+}
+
+async function renderRolesPage() {
   await requirePermission('roles.ver');
   const actor = await getCurrentUser();
   const roles = await listRoles();

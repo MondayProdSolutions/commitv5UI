@@ -6,6 +6,8 @@ import Pagination from '@/components/Pagination';
 import { parseDateParam } from '@/lib/activity/query';
 import { listMovements, movementTipoLabel, type MovementRow } from '@/lib/inventory/query';
 import { Button } from '@/components/ui/Button';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +42,11 @@ function fmtFecha(d: Date): string {
 }
 
 export default async function MovimientosPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderMovimientosPage(props));
+}
+
+async function renderMovimientosPage(props: { searchParams: Promise<SearchParams> }) {
   const actor = await requirePermission('inventario.ver');
   const sp = await props.searchParams;
 

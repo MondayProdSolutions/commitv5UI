@@ -1,15 +1,17 @@
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 
 export async function getSetting<T>(clave: string, fallback: T): Promise<T> {
-  const row = await db.appSetting.findUnique({ where: { clave } });
+  const tenantId = getCurrentTenantId();
+  const row = await db.appSetting.findUnique({ where: { tenantId_clave: { tenantId, clave } } });
   return row ? (row.valor as T) : fallback;
 }
 
 export async function setSetting(clave: string, valor: unknown): Promise<void> {
+  const tenantId = getCurrentTenantId();
   await db.appSetting.upsert({
-    where: { clave },
+    where: { tenantId_clave: { tenantId, clave } },
     update: { valor: valor as object },
-    create: { clave, valor: valor as object },
+    create: { tenantId, clave, valor: valor as object },
   });
 }
 

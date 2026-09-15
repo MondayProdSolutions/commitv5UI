@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { requirePermission } from '@/lib/auth/context';
 import { can } from '@/lib/auth/rbac';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,11 @@ const REPORTES = [
 ] as const;
 
 export default async function ReportesPage() {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, renderReportesPage);
+}
+
+async function renderReportesPage() {
   const actor = await requirePermission('reportes.ver');
   const verMargen = can(actor, 'reportes.margen');
   const verAsistencia = can(actor, 'asistencia.ver');

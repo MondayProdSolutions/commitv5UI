@@ -13,6 +13,8 @@ import {
   closeCashSessionSchema,
 } from '@/lib/validation/cash';
 import { openCashSession, recordCashMovement, closeCashSession } from '@/lib/cash/sessions';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
 function fieldErrorsFrom(error: z.ZodError): Record<string, string> {
@@ -34,17 +36,26 @@ async function ip(): Promise<string | null> {
 }
 
 export async function abrirCajaAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requirePermission('caja.gestionar');
+  // `openCashSession` es una escritura; corre dentro de `withTenant` y el
+  // resultado se devuelve ANTES del `redirect()` final. `redirect()` lanza
+  // internamente — si quedara dentro de la misma transacción, un rollback
+  // revertiría la apertura de caja recién confirmada al usuario.
+  const tenantId = await requireRequestTenantId();
+  const error = await withTenant(tenantId, async (): Promise<FormState | null> => {
+    const actor = await requirePermission('caja.gestionar');
 
-  const parsed = openCashSessionSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+    const parsed = openCashSessionSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
-  try {
-    await openCashSession(actor.id, parsed.data.fondoApertura, await ip());
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      await openCashSession(actor.id, parsed.data.fondoApertura, await ip());
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+    return null;
+  });
+  if (error) return error;
 
   revalidatePath('/caja');
   redirect('/caja');
@@ -54,42 +65,54 @@ export async function registrarMovimientoCajaAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const actor = await requirePermission('caja.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('caja.gestionar');
 
-  const parsed = cashMovementSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+    const parsed = cashMovementSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
-  try {
-    await recordCashMovement(actor.id, parsed.data, await ip());
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      await recordCashMovement(actor.id, parsed.data, await ip());
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
 
-  revalidatePath('/caja');
-  return { ok: true };
+    revalidatePath('/caja');
+    return { ok: true };
+  });
 }
 
 export async function cerrarCajaAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requirePermission('caja.gestionar');
+  // Mismo motivo que `abrirCajaAction`: `closeCashSession` es una escritura,
+  // así que el `redirect()` va después de que la transacción de `withTenant`
+  // ya hizo commit.
+  const tenantId = await requireRequestTenantId();
+  const result = await withTenant(tenantId, async (): Promise<FormState | { redirectId: string }> => {
+    const actor = await requirePermission('caja.gestionar');
 
-  const parsed = closeCashSessionSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+    const parsed = closeCashSessionSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
-  let id: string;
-  try {
-    ({ id } = await closeCashSession(
-      actor.id,
-      parsed.data.efectivoContado,
-      parsed.data.notaCierre,
-      await ip(),
-    ));
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
+    try {
+      const { id } = await closeCashSession(
+        actor.id,
+        parsed.data.efectivoContado,
+        parsed.data.notaCierre,
+        await ip(),
+      );
+      return { redirectId: id };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
+
+  if ('redirectId' in result) {
+    revalidatePath('/caja');
+    revalidatePath('/caja/historial');
+    redirect(`/caja/sesiones/${result.redirectId}`);
   }
-
-  revalidatePath('/caja');
-  revalidatePath('/caja/historial');
-  redirect(`/caja/sesiones/${id}`);
+  return result;
 }

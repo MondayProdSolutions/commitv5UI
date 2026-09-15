@@ -14,6 +14,8 @@ import {
   restoreCategory,
 } from '@/lib/catalog/categories';
 import { getProduct, updateProduct } from '@/lib/catalog/products';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
 export type CategoriaActionState = FormState & {
@@ -47,129 +49,144 @@ export async function crearCategoriaAction(
   _prev: CategoriaActionState,
   formData: FormData,
 ): Promise<CategoriaActionState> {
-  const actor = await requirePermission('categorias.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('categorias.gestionar');
 
-  const parsed = createCategorySchema.safeParse({
-    nombre: formData.get('nombre'),
-    parentId: formData.get('parentId') ?? undefined,
-    icono: formData.get('icono') ?? undefined,
-    color: formData.get('color') ?? undefined,
-    orden: formData.get('orden') ?? undefined,
+    const parsed = createCategorySchema.safeParse({
+      nombre: formData.get('nombre'),
+      parentId: formData.get('parentId') ?? undefined,
+      icono: formData.get('icono') ?? undefined,
+      color: formData.get('color') ?? undefined,
+      orden: formData.get('orden') ?? undefined,
+    });
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+
+    try {
+      const { id } = await createCategory(actor.id, parsed.data, await ip());
+      revalidatePath(CATEGORIAS_PATH);
+      return { ok: true, id };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
   });
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
-
-  try {
-    const { id } = await createCategory(actor.id, parsed.data, await ip());
-    revalidatePath(CATEGORIAS_PATH);
-    return { ok: true, id };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
 }
 
 export async function editarCategoriaAction(
   _prev: CategoriaActionState,
   formData: FormData,
 ): Promise<CategoriaActionState> {
-  const actor = await requirePermission('categorias.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('categorias.gestionar');
 
-  const parsed = updateCategorySchema.safeParse({
-    id: formData.get('id'),
-    nombre: formData.get('nombre'),
-    parentId: formData.get('parentId') ?? undefined,
-    icono: formData.get('icono') ?? undefined,
-    color: formData.get('color') ?? undefined,
-    orden: formData.get('orden') ?? undefined,
+    const parsed = updateCategorySchema.safeParse({
+      id: formData.get('id'),
+      nombre: formData.get('nombre'),
+      parentId: formData.get('parentId') ?? undefined,
+      icono: formData.get('icono') ?? undefined,
+      color: formData.get('color') ?? undefined,
+      orden: formData.get('orden') ?? undefined,
+    });
+    if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
+
+    const { id, nombre, parentId, icono, color, orden } = parsed.data;
+    try {
+      await updateCategory(actor.id, id, { nombre, parentId, icono, color, orden }, await ip());
+      revalidatePath(CATEGORIAS_PATH);
+      return { ok: true, id };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
   });
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
-
-  const { id, nombre, parentId, icono, color, orden } = parsed.data;
-  try {
-    await updateCategory(actor.id, id, { nombre, parentId, icono, color, orden }, await ip());
-    revalidatePath(CATEGORIAS_PATH);
-    return { ok: true, id };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
 }
 
 export async function archivarCategoriaAction(
   _prev: CategoriaActionState,
   formData: FormData,
 ): Promise<CategoriaActionState> {
-  const actor = await requirePermission('categorias.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('categorias.gestionar');
 
-  const id = String(formData.get('id') ?? '');
-  if (!id) return { ok: false, formError: 'Categoría no válida.' };
+    const id = String(formData.get('id') ?? '');
+    if (!id) return { ok: false, formError: 'Categoría no válida.' };
 
-  try {
-    const r = await archiveCategory(actor.id, id, await ip());
-    revalidatePath(CATEGORIAS_PATH);
-    return {
-      ok: true,
-      id,
-      subcategoriasArchivadas: r.subcategoriasArchivadas,
-      productosAfectados: r.productosAfectados,
-    };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      const r = await archiveCategory(actor.id, id, await ip());
+      revalidatePath(CATEGORIAS_PATH);
+      return {
+        ok: true,
+        id,
+        subcategoriasArchivadas: r.subcategoriasArchivadas,
+        productosAfectados: r.productosAfectados,
+      };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }
 
 export async function restaurarCategoriaAction(
   _prev: CategoriaActionState,
   formData: FormData,
 ): Promise<CategoriaActionState> {
-  const actor = await requirePermission('categorias.gestionar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('categorias.gestionar');
 
-  const id = String(formData.get('id') ?? '');
-  if (!id) return { ok: false, formError: 'Categoría no válida.' };
+    const id = String(formData.get('id') ?? '');
+    if (!id) return { ok: false, formError: 'Categoría no válida.' };
 
-  try {
-    await restoreCategory(actor.id, id, await ip());
-    revalidatePath(CATEGORIAS_PATH);
-    return { ok: true, id };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+    try {
+      await restoreCategory(actor.id, id, await ip());
+      revalidatePath(CATEGORIAS_PATH);
+      return { ok: true, id };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }
 
 export async function recategorizarProductoAction(
   _prev: CategoriaActionState,
   formData: FormData,
 ): Promise<CategoriaActionState> {
-  const actor = await requirePermission('productos.editar');
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    const actor = await requirePermission('productos.editar');
 
-  const productId = String(formData.get('productId') ?? '');
-  if (!productId) return { ok: false, formError: 'Producto no válido.' };
-  const categoryId = String(formData.get('categoryId') ?? '') || null;
+    const productId = String(formData.get('productId') ?? '');
+    if (!productId) return { ok: false, formError: 'Producto no válido.' };
+    const categoryId = String(formData.get('categoryId') ?? '') || null;
 
-  try {
-    const producto = await getProduct(productId);
-    if (!producto) return { ok: false, formError: 'El producto no existe.' };
+    try {
+      const producto = await getProduct(productId);
+      if (!producto) return { ok: false, formError: 'El producto no existe.' };
 
-    await updateProduct(
-      actor.id,
-      productId,
-      {
-        id: productId,
-        nombre: producto.nombre,
-        descripcion: producto.descripcion,
-        categoryId,
-        taxRateId: producto.taxRateId,
-        imagenUrl: producto.imagenUrl,
-      },
-      await ip(),
-    );
-    revalidatePath(SIN_CATEGORIA_PATH);
-    revalidatePath(CATEGORIAS_PATH);
-    return { ok: true, id: productId };
-  } catch (e) {
-    if (e instanceof ValidationError) return fromValidationError(e);
-    throw e;
-  }
+      await updateProduct(
+        actor.id,
+        productId,
+        {
+          id: productId,
+          nombre: producto.nombre,
+          descripcion: producto.descripcion,
+          categoryId,
+          taxRateId: producto.taxRateId,
+          imagenUrl: producto.imagenUrl,
+        },
+        await ip(),
+      );
+      revalidatePath(SIN_CATEGORIA_PATH);
+      revalidatePath(CATEGORIAS_PATH);
+      return { ok: true, id: productId };
+    } catch (e) {
+      if (e instanceof ValidationError) return fromValidationError(e);
+      throw e;
+    }
+  });
 }

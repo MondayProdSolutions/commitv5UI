@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { nextFolio } from './folio';
 
 // Este itest fija el estado de FolioCounter para poder aseverar el número exacto.
 beforeEach(async () => {
-  await db.folioCounter.update({ where: { serie: 'V' }, data: { valor: 0 } });
-  await db.folioCounter.update({ where: { serie: 'C' }, data: { valor: 0 } });
+  const tenantId = getCurrentTenantId();
+  await db.folioCounter.update({ where: { tenantId_serie: { tenantId, serie: 'V' } }, data: { valor: 0 } });
+  await db.folioCounter.update({ where: { tenantId_serie: { tenantId, serie: 'C' } }, data: { valor: 0 } });
 });
 
 afterAll(async () => {
-  await db.folioCounter.update({ where: { serie: 'V' }, data: { valor: 0 } });
-  await db.folioCounter.update({ where: { serie: 'C' }, data: { valor: 0 } });
+  const tenantId = getCurrentTenantId();
+  await db.folioCounter.update({ where: { tenantId_serie: { tenantId, serie: 'V' } }, data: { valor: 0 } });
+  await db.folioCounter.update({ where: { tenantId_serie: { tenantId, serie: 'C' } }, data: { valor: 0 } });
 });
 
 describe('nextFolio', () => {

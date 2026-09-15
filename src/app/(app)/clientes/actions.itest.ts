@@ -1,12 +1,13 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { hashPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
 
 const cookieStore = { value: undefined as string | undefined };
+const tenantHeader = { id: '' };
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => (cookieStore.value ? { value: cookieStore.value } : undefined) }),
-  headers: async () => new Headers(),
+  headers: async () => new Headers({ 'x-tenant-id': tenantHeader.id }),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 const redirectMock = vi.fn((url: string) => {
@@ -15,6 +16,10 @@ const redirectMock = vi.fn((url: string) => {
 vi.mock('next/navigation', () => ({ redirect: (u: string) => redirectMock(u) }));
 
 import { crearClienteAction, editarClienteAction, archivarClienteAction } from './actions';
+
+beforeAll(async () => {
+  tenantHeader.id = (await db.tenant.findFirstOrThrow({ where: { slug: 'default' } })).id;
+});
 
 async function userConRol(nombre: string, email: string) {
   const role = await db.role.findFirstOrThrow({ where: { nombre } });

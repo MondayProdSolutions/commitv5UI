@@ -6,10 +6,17 @@ import { getSetting } from '@/lib/settings';
 import { fmtFechaMX } from '@/app/(app)/ventas/types';
 import { CorteView } from '../../CorteView';
 import { SesionAbiertaResumen } from '../../SesionAbiertaResumen';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CajaSessionDetailPage(props: { params: Promise<{ id: string }> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderCajaSessionDetailPage(props));
+}
+
+async function renderCajaSessionDetailPage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('caja.gestionar');
   const { id } = await props.params;
 

@@ -11,6 +11,8 @@ import { movementSchema } from '@/lib/validation/movement';
 import { recordMovement } from '@/lib/inventory/movements';
 import { permisoParaTipo } from '@/lib/inventory/movement-perms';
 import { searchProducts, type SearchHit } from '@/lib/catalog/search';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import type { FormState } from '@/app/(auth)/setup/actions';
 
 const MOVIMIENTOS_PATH = '/inventario/movimientos';
@@ -32,29 +34,38 @@ export async function registrarMovimientoAction(
   if (tipo !== 'ENTRADA' && tipo !== 'SALIDA' && tipo !== 'AJUSTE') {
     return { ok: false, fieldErrors: { tipo: 'Tipo de movimiento inválido.' } };
   }
-  const actor = await requirePermission(permisoParaTipo(tipo));
 
-  const parsed = movementSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
-  }
+  // `recordMovement` es una escritura; corre dentro de `withTenant` y el
+  // `redirect()` va después de que la transacción ya hizo commit (ver la nota
+  // en `caja/actions.ts`).
+  const tenantId = await requireRequestTenantId();
+  const error = await withTenant(tenantId, async (): Promise<FormState | null> => {
+    const actor = await requirePermission(permisoParaTipo(tipo));
 
-  try {
-    await recordMovement({
-      variantId: parsed.data.variantId,
-      tipo: parsed.data.tipo,
-      valor: parsed.data.valor,
-      motivo: parsed.data.motivo,
-      costoUnitario: parsed.data.costoUnitario ?? null,
-      actorId: actor.id,
-      ip: getClientIp(await headers()),
-    });
-  } catch (e) {
-    if (e instanceof ValidationError) {
-      return { ok: false, fieldErrors: e.fields, formError: e.message };
+    const parsed = movementSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) {
+      return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
     }
-    throw e;
-  }
+
+    try {
+      await recordMovement({
+        variantId: parsed.data.variantId,
+        tipo: parsed.data.tipo,
+        valor: parsed.data.valor,
+        motivo: parsed.data.motivo,
+        costoUnitario: parsed.data.costoUnitario ?? null,
+        actorId: actor.id,
+        ip: getClientIp(await headers()),
+      });
+    } catch (e) {
+      if (e instanceof ValidationError) {
+        return { ok: false, fieldErrors: e.fields, formError: e.message };
+      }
+      throw e;
+    }
+    return null;
+  });
+  if (error) return error;
 
   revalidatePath(MOVIMIENTOS_PATH);
   revalidatePath('/inventario');
@@ -67,8 +78,11 @@ export async function buscarVariantesAction(
   _prev: BuscarVariantesState,
   formData: FormData,
 ): Promise<BuscarVariantesState> {
-  await requirePermission('inventario.ver');
-  const q = String(formData.get('q') ?? '');
-  const hits = await searchProducts(q, { soloDisponibles: false, limit: 10 });
-  return { ok: true, hits };
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, async () => {
+    await requirePermission('inventario.ver');
+    const q = String(formData.get('q') ?? '');
+    const hits = await searchProducts(q, { soloDisponibles: false, limit: 10 });
+    return { ok: true, hits };
+  });
 }

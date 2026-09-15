@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
+
+/** `Role.nombre` ahora tiene clave compuesta `(tenantId, nombre)`. */
+function roleWhere(nombre: string) {
+  return { tenantId_nombre: { tenantId: getCurrentTenantId(), nombre } };
+}
 
 describe('seed bloque 2', () => {
   it('siembra las tasas de impuesto', async () => {
@@ -12,7 +17,7 @@ describe('seed bloque 2', () => {
 
   it('asigna los permisos de bloque 2 a Gerente (las 9)', async () => {
     const gerente = await db.role.findUniqueOrThrow({
-      where: { nombre: 'Gerente' },
+      where: roleWhere('Gerente'),
       include: { permissions: true },
     });
     const keys = gerente.permissions.map((p) => p.permiso);
@@ -25,7 +30,7 @@ describe('seed bloque 2', () => {
 
   it('Cajero y Empleado solo obtienen ver, no movimientos', async () => {
     for (const nombre of ['Cajero', 'Empleado']) {
-      const rol = await db.role.findUniqueOrThrow({ where: { nombre }, include: { permissions: true } });
+      const rol = await db.role.findUniqueOrThrow({ where: roleWhere(nombre), include: { permissions: true } });
       const keys = rol.permissions.map((p) => p.permiso);
       expect(keys).toContain('productos.ver');
       expect(keys).toContain('inventario.ver');

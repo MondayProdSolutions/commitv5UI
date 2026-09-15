@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { inputClass } from '@/app/(app)/ventas/types';
 import { UserFormDialog } from './UserFormDialog';
 import { UserRow } from './UserRow';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,11 @@ function estadoFrom(v: string | undefined): 'activos' | 'inactivos' | 'todos' {
 }
 
 export default async function UsuariosPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderUsuariosPage(props));
+}
+
+async function renderUsuariosPage(props: { searchParams: Promise<SearchParams> }) {
   await requirePermission('usuarios.ver');
   const actor = await getCurrentUser();
   const sp = await props.searchParams;

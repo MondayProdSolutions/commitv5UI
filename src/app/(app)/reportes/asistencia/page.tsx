@@ -2,7 +2,8 @@ import { requirePermission } from '@/lib/auth/context';
 import { can } from '@/lib/auth/rbac';
 import { resolvePeriod } from '@/lib/reports/period';
 import { getAttendanceDashboard } from '@/lib/attendance/dashboard';
-import { db } from '@/lib/db';
+import { db, withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 import { BarChart } from '@/components/charts/BarChart';
 import { Card } from '@/components/ui/Card';
 import { PeriodFilterForm } from '@/app/(app)/reportes/PeriodFilterForm';
@@ -24,11 +25,18 @@ function fmtHora(d: Date): string {
   }).format(d);
 }
 
-export default async function AsistenciaPage(props: {
+type AsistenciaReportPageProps = {
   searchParams: Promise<{
     atajo?: string; desde?: string; hasta?: string; userId?: string; roleId?: string;
   }>;
-}) {
+};
+
+export default async function AsistenciaPage(props: AsistenciaReportPageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderAsistenciaPage(props));
+}
+
+async function renderAsistenciaPage(props: AsistenciaReportPageProps) {
   const actor = await requirePermission('asistencia.ver');
   const sp = await props.searchParams;
   const periodo = resolvePeriod(sp);

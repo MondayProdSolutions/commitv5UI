@@ -4,13 +4,27 @@ import { requirePermission } from '@/lib/auth/context';
 import { getOpenCashSession, getCashSession } from '@/lib/cash/sessions';
 import { AbrirCajaForm } from './AbrirCajaForm';
 import { PanelCajaAbierta } from './PanelCajaAbierta';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CajaPage() {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, renderCajaPage);
+}
+
+// La sección de caja abierta se resuelve aquí mismo (en vez de un componente
+// async anidado renderizado vía JSX) para que su lectura de `db` quede
+// garantizada dentro de este mismo `withTenant` — un componente hijo separado
+// podría, igual que layout → page, no heredar el contexto de la función que
+// lo referencia.
+async function renderCajaPage() {
   await requirePermission('caja.gestionar');
 
   const abierta = await getOpenCashSession();
+  const session = abierta ? await getCashSession(abierta.id) : null;
+  if (abierta && !session) notFound();
 
   return (
     <div className="space-y-6">
@@ -19,7 +33,7 @@ export default async function CajaPage() {
         <p className="text-ink-muted">Apertura, movimientos y cierre de la caja del turno.</p>
       </div>
 
-      {abierta === null ? (
+      {session === null ? (
         <div className="space-y-4">
           <AbrirCajaForm />
           <Link
@@ -30,14 +44,8 @@ export default async function CajaPage() {
           </Link>
         </div>
       ) : (
-        <CajaAbiertaSection sessionId={abierta.id} />
+        <PanelCajaAbierta session={session} />
       )}
     </div>
   );
-}
-
-async function CajaAbiertaSection({ sessionId }: { sessionId: string }) {
-  const session = await getCashSession(sessionId);
-  if (!session) notFound();
-  return <PanelCajaAbierta session={session} />;
 }

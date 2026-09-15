@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { ValidationError } from '@/lib/errors';
 import { prorateReturnLine } from './compute';
 import { cancelSale, createSale, getSale } from './sales';
@@ -7,6 +7,11 @@ import { createReturn, getReturn, listReturns, type CreateReturnInput } from './
 import { seedCajero, seedVariant, cleanupSales, conCajaAbierta } from './__testutil';
 
 const round2 = (x: number): number => Math.round(x * 100) / 100;
+
+/** `FolioCounter` ahora tiene clave compuesta `(tenantId, serie)`. */
+function folioCounterWhere(serie: 'V' | 'D' | 'C') {
+  return { tenantId_serie: { tenantId: getCurrentTenantId(), serie } };
+}
 
 const CAJERO_EMAIL = 'task8-devoluciones@pos.com';
 let ACTOR: string;
@@ -176,7 +181,7 @@ describe('createReturn', () => {
 
   it('exceder lo devolvible (4 de una línea de 3) → ValidationError({ lineas.0.cantidad }) "Máximo devolvible: 3."', async () => {
     const { saleId, saleLine } = await ventaDe(3);
-    const folioBefore = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'D' } })).valor;
+    const folioBefore = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('D') })).valor;
 
     await expect(
       createReturn(ACTOR, returnInput({ saleId, lineas: [{ saleLineId: saleLine.id, cantidad: 4 }] }), null),
@@ -184,7 +189,7 @@ describe('createReturn', () => {
 
     expect(await db.return.count()).toBe(0);
     expect(await db.inventoryMovement.count({ where: { tipo: 'DEVOLUCION' } })).toBe(0);
-    const folioAfter = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'D' } })).valor;
+    const folioAfter = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('D') })).valor;
     expect(folioAfter).toBe(folioBefore);
   });
 
@@ -210,7 +215,7 @@ describe('createReturn', () => {
 
   it('dos líneas de entrada con el mismo saleLineId que suman más de lo devolvible → ValidationError', async () => {
     const { saleId, variantId, saleLine } = await ventaDe(3);
-    const folioBefore = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'D' } })).valor;
+    const folioBefore = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('D') })).valor;
 
     await expect(
       createReturn(
@@ -232,7 +237,7 @@ describe('createReturn', () => {
     expect(await db.return.count()).toBe(0);
     expect(await db.inventoryMovement.count({ where: { tipo: 'DEVOLUCION' } })).toBe(0);
     expect((await db.productVariant.findUniqueOrThrow({ where: { id: variantId } })).stock).toBe(47);
-    const folioAfter = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'D' } })).valor;
+    const folioAfter = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('D') })).valor;
     expect(folioAfter).toBe(folioBefore);
   });
 
@@ -269,7 +274,7 @@ describe('createReturn', () => {
   it('sin caja abierta → ValidationError _form, nada creado', async () => {
     const { saleId, saleLine } = await ventaDe(3);
     await db.cashSession.update({ where: { id: SESSION_ID }, data: { estado: 'CERRADA' } });
-    const folioBefore = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'D' } })).valor;
+    const folioBefore = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('D') })).valor;
 
     const err = await createReturn(
       ACTOR,
@@ -281,7 +286,7 @@ describe('createReturn', () => {
 
     expect(await db.return.count()).toBe(0);
     expect(await db.inventoryMovement.count({ where: { tipo: 'DEVOLUCION' } })).toBe(0);
-    const folioAfter = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'D' } })).valor;
+    const folioAfter = (await db.folioCounter.findUniqueOrThrow({ where: folioCounterWhere('D') })).valor;
     expect(folioAfter).toBe(folioBefore);
   });
 

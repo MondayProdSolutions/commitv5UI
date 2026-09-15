@@ -6,10 +6,17 @@ import { stockAlertsCount } from '@/lib/inventory/stock';
 import { getOpenCashSession } from '@/lib/cash/sessions';
 import { money, fmtFechaMX } from '@/app/(app)/ventas/types';
 import { KpiCard } from '@/components/ui/KpiCard';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, renderDashboardPage);
+}
+
+async function renderDashboardPage() {
   const actor = await requireUser();
 
   const verVentas = can(actor, 'reportes.ver');

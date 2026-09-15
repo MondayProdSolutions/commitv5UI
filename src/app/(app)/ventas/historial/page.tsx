@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requirePermission } from '@/lib/auth/context';
-import { db } from '@/lib/db';
+import { db, withTenant } from '@/lib/db';
 import { parseDateParam } from '@/lib/activity/query';
 import { listSales, type SaleRow as SaleListRow } from '@/lib/sales/sales';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { SaleRow } from '../SaleRow';
 import { money, fmtFechaMX } from '../types';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,9 +41,14 @@ function EstadoBadge({ estado }: { estado: SaleListRow['estado'] }) {
 const inputClass =
   'block rounded-control border border-line-strong px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-ring/40';
 
-export default async function HistorialVentasPage(props: {
-  searchParams: Promise<SearchParams>;
-}) {
+type HistorialVentasPageProps = { searchParams: Promise<SearchParams> };
+
+export default async function HistorialVentasPage(props: HistorialVentasPageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderHistorialVentasPage(props));
+}
+
+async function renderHistorialVentasPage(props: HistorialVentasPageProps) {
   await requirePermission('ventas.ver');
   const sp = await props.searchParams;
 

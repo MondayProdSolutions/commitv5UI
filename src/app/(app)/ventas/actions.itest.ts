@@ -1,14 +1,15 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { db } from '@/lib/db';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { hashPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
 import { createSale } from '@/lib/sales/sales';
 import { seedVariant, cleanupSales, conCajaAbierta } from '@/lib/sales/__testutil';
 
 const cookieStore = { value: undefined as string | undefined };
+const tenantHeader = { id: '' };
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => (cookieStore.value ? { value: cookieStore.value } : undefined) }),
-  headers: async () => new Headers(),
+  headers: async () => new Headers({ 'x-tenant-id': tenantHeader.id }),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 const redirectMock = vi.fn((url: string) => {
@@ -17,6 +18,10 @@ const redirectMock = vi.fn((url: string) => {
 vi.mock('next/navigation', () => ({ redirect: (u: string) => redirectMock(u) }));
 
 import { crearVentaAction, cancelarVentaAction, crearDevolucionAction } from './actions';
+
+beforeAll(async () => {
+  tenantHeader.id = (await db.tenant.findFirstOrThrow({ where: { slug: 'default' } })).id;
+});
 
 const EMPLEADO = 't10-empleado@pos.com';
 const CAJERO = 't10-cajero@pos.com';
@@ -185,7 +190,11 @@ describe('crearVentaAction', () => {
   it('pago que no cubre el total → formError de createSale, sin redirect, FolioCounter.V intacto', async () => {
     await sesionRol('Cajero', CAJERO);
     const { variantId } = await seedVariant({ precioVenta: 100, stock: 10 });
-    const before = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const before = (
+      await db.folioCounter.findUniqueOrThrow({
+        where: { tenantId_serie: { tenantId: getCurrentTenantId(), serie: 'V' } },
+      })
+    ).valor;
 
     const res = await crearVentaAction(
       { ok: false },
@@ -199,7 +208,11 @@ describe('crearVentaAction', () => {
     expect(res.formError).toBeTruthy();
     expect(redirectMock).not.toHaveBeenCalled();
     expect(await db.sale.count()).toBe(0);
-    const after = (await db.folioCounter.findUniqueOrThrow({ where: { serie: 'V' } })).valor;
+    const after = (
+      await db.folioCounter.findUniqueOrThrow({
+        where: { tenantId_serie: { tenantId: getCurrentTenantId(), serie: 'V' } },
+      })
+    ).valor;
     expect(after).toBe(before);
   });
 });

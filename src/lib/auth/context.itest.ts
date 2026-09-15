@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { db } from '@/lib/db';
+import { db, withTenant, getCurrentTenantId } from '@/lib/db';
 import { hashPassword } from './password';
 import { createSession } from './session';
+import * as auditModule from '@/lib/audit';
 
 const cookieStore = { value: undefined as string | undefined };
 vi.mock('next/headers', () => ({
@@ -51,5 +52,56 @@ describe('requirePermission', () => {
     await expect(requirePermission('usuarios.crear')).rejects.toMatchObject({ code: 'FORBIDDEN' });
     const log = await db.activityLog.findFirst({ where: { accion: 'auth.forbidden' } });
     expect(log?.metadata).toMatchObject({ permisoRequerido: 'usuarios.crear' });
+  });
+
+  // Reproduce el escenario real: todo call site de requirePermission (page,
+  // Route Handler, Server Action) corre dentro de un withTenant(...) abierto
+  // por el llamador (ver p. ej. createUserAction en admin/usuarios/actions.ts).
+  // Si el throw de ForbiddenError se propaga hasta ese withTenant, Prisma
+  // revierte SU transacción — y con ella, cualquier INSERT hecho vía el `db`
+  // ambiente dentro de esa misma transacción, incluido el log de auditoría
+  // que requirePermission acaba de escribir. Este test falla contra el código
+  // sin arreglar (el log no sobrevive) y debe pasar tras la corrección.
+  it('el log de auditoría sobrevive aunque requirePermission corra dentro de un withTenant que revierte', async () => {
+    const u = await makeUser('Cajero');
+    cookieStore.value = (await createSession(u.id, {})).token;
+    const tenantId = getCurrentTenantId();
+
+    await expect(
+      withTenant(tenantId, async () => {
+        await requirePermission('usuarios.crear');
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const log = await db.activityLog.findFirst({
+      where: { accion: 'auth.forbidden', actorId: u.id },
+    });
+    expect(log?.metadata).toMatchObject({ permisoRequerido: 'usuarios.crear' });
+  });
+
+  // El log de auditoría es best-effort a propósito (ver el try/catch en
+  // requirePermission): si escribirlo falla (p. ej. el pool no tiene una
+  // segunda conexión libre bajo presión y la transacción independiente
+  // revienta por maxWait), ese fallo NO debe reemplazar al ForbiddenError,
+  // que es la respuesta autoritativa de la denegación. Se simula la falla
+  // espiando logActivity en vez de agotar el pool de verdad.
+  it('sigue lanzando ForbiddenError aunque falle la escritura de auditoría', async () => {
+    const u = await makeUser('Cajero');
+    cookieStore.value = (await createSession(u.id, {})).token;
+    const tenantId = getCurrentTenantId();
+
+    const logSpy = vi.spyOn(auditModule, 'logActivity').mockRejectedValueOnce(new Error('fallo simulado de auditoría'));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(
+        withTenant(tenantId, async () => {
+          await requirePermission('usuarios.crear');
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      expect(errSpy).toHaveBeenCalled();
+    } finally {
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    }
   });
 });

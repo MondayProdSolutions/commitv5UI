@@ -4,6 +4,8 @@ import { productsInArchivedCategories, listCategoryTree } from '@/lib/catalog/ca
 import { DataTable, type Column } from '@/components/DataTable';
 import Pagination from '@/components/Pagination';
 import { RecategorizeForm } from './RecategorizeForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,9 +13,14 @@ const PAGE_SIZE = 20;
 
 type Row = { id: string; nombre: string; categoriaNombre: string };
 
-export default async function SinCategoriaActivaPage(props: {
-  searchParams: Promise<{ page?: string }>;
-}) {
+type SinCategoriaActivaPageProps = { searchParams: Promise<{ page?: string }> };
+
+export default async function SinCategoriaActivaPage(props: SinCategoriaActivaPageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderSinCategoriaActivaPage(props));
+}
+
+async function renderSinCategoriaActivaPage(props: SinCategoriaActivaPageProps) {
   await requirePermission('categorias.gestionar');
   const sp = await props.searchParams;
   const page = Math.max(1, Number(sp.page) || 1);

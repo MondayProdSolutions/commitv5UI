@@ -9,6 +9,8 @@ import { flattenCategories } from '../productos/categoryOptions';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +42,11 @@ const inputClass =
   'block rounded-control border border-line-strong px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-ring/40';
 
 export default async function InventarioPage(props: { searchParams: Promise<SearchParams> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderInventarioPage(props));
+}
+
+async function renderInventarioPage(props: { searchParams: Promise<SearchParams> }) {
   await requirePermission('inventario.ver');
   const sp = await props.searchParams;
 

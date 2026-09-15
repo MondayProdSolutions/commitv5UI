@@ -7,59 +7,73 @@ datasource db {
 }
 
 model User {
-  id                 String    @id @default(cuid())
-  nombre             String
-  email              String    @unique
-  telefono           String?
-  avatarUrl          String?
-  passwordHash       String
-  roleId             String
-  role               Role      @relation(fields: [roleId], references: [id])
-  activo             Boolean   @default(true)
-  mustChangePassword Boolean   @default(false)
-  lastLoginAt        DateTime?
-  createdById        String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  sessions           Session[]
-  activity           ActivityLog[] @relation("ActorActivity")
-  inventoryMovements InventoryMovement[] @relation("ActorMovimientos")
-  ventas             Sale[]    @relation("Cajero")
-  ventasCanceladas   Sale[]    @relation("CanceladaPor")
-  devoluciones       Return[]
-  cajasAbiertas      CashSession[]  @relation("AbiertaPor")
-  cajasCerradas      CashSession[]  @relation("CerradaPor")
-  movimientosCaja    CashMovement[] @relation("ActorMovimientoCaja")
-  asistencias           AttendanceRecord[] @relation("AsistenciaUsuario")
-  asistenciasCorregidas AttendanceRecord[] @relation("AsistenciaCorregidoPor")
+  id                    String              @id @default(cuid())
+  tenantId              String              @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant                Tenant              @relation(fields: [tenantId], references: [id])
+  nombre                String
+  email                 String
+  telefono              String?
+  avatarUrl             String?
+  passwordHash          String
+  roleId                String
+  role                  Role                @relation(fields: [roleId], references: [id])
+  activo                Boolean             @default(true)
+  mustChangePassword    Boolean             @default(false)
+  lastLoginAt           DateTime?
+  createdById           String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  sessions              Session[]
+  activity              ActivityLog[]       @relation("ActorActivity")
+  inventoryMovements    InventoryMovement[] @relation("ActorMovimientos")
+  ventas                Sale[]              @relation("Cajero")
+  ventasCanceladas      Sale[]              @relation("CanceladaPor")
+  devoluciones          Return[]
+  cajasAbiertas         CashSession[]       @relation("AbiertaPor")
+  cajasCerradas         CashSession[]       @relation("CerradaPor")
+  movimientosCaja       CashMovement[]      @relation("ActorMovimientoCaja")
+  asistencias           AttendanceRecord[]  @relation("AsistenciaUsuario")
+  asistenciasCorregidas AttendanceRecord[]  @relation("AsistenciaCorregidoPor")
 
+  @@unique([tenantId, email])
   @@index([roleId])
   @@index([activo])
+  @@index([tenantId])
 }
 
 model Role {
   id          String           @id @default(cuid())
-  nombre      String           @unique
+  tenantId    String           @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  nombre      String
   descripcion String?
   esSistema   Boolean          @default(false)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   permissions RolePermission[]
   users       User[]
+
+  @@unique([tenantId, nombre])
+  @@index([tenantId])
 }
 
 model RolePermission {
-  id     String @id @default(cuid())
-  roleId String
-  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permiso String
+  id       String @id @default(cuid())
+  tenantId String @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  roleId   String
+  role     Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permiso  String
 
   @@unique([roleId, permiso])
   @@index([roleId])
+  @@index([tenantId])
 }
 
 model Session {
   id             String    @id @default(cuid())
+  tenantId       String    @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
   tokenHash      String    @unique
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -72,10 +86,13 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+  @@index([tenantId])
 }
 
 model ActivityLog {
   id        String   @id @default(cuid())
+  tenantId  String   @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   actorId   String?
   actor     User?    @relation("ActorActivity", fields: [actorId], references: [id])
   accion    String
@@ -88,12 +105,18 @@ model ActivityLog {
   @@index([actorId, createdAt])
   @@index([accion, createdAt])
   @@index([createdAt])
+  @@index([tenantId])
 }
 
 model AppSetting {
-  clave     String   @id
+  tenantId  String   @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  clave     String
   valor     Json
   updatedAt DateTime @updatedAt
+
+  @@id([tenantId, clave])
+  @@index([tenantId])
 }
 
 // --- Bloque 2: Productos, Categorías e Inventario ---
@@ -112,18 +135,25 @@ enum MovementType {
 }
 
 model TaxRate {
-  id        String   @id @default(cuid())
-  nombre    String   @unique
-  tasa      Decimal  @db.Decimal(5, 4)
-  activa    Boolean  @default(true)
-  esDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(cuid())
+  tenantId  String    @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  nombre    String
+  tasa      Decimal   @db.Decimal(5, 4)
+  activa    Boolean   @default(true)
+  esDefault Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   products  Product[]
+
+  @@unique([tenantId, nombre])
+  @@index([tenantId])
 }
 
 model Category {
   id        String     @id @default(cuid())
+  tenantId  String     @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
   nombre    String
   parentId  String?
   parent    Category?  @relation("Subcats", fields: [parentId], references: [id])
@@ -143,56 +173,67 @@ model Category {
   @@unique([parentId, nombre])
   @@index([parentId])
   @@index([archivada])
+  @@index([tenantId])
 }
 
 model Product {
-  id          String      @id @default(cuid())
+  id          String           @id @default(cuid())
+  tenantId    String           @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
   nombre      String
   descripcion String?
   categoryId  String?
-  category    Category?   @relation(fields: [categoryId], references: [id])
+  category    Category?        @relation(fields: [categoryId], references: [id])
   taxRateId   String
-  taxRate     TaxRate     @relation(fields: [taxRateId], references: [id])
-  tipo        ProductType @default(SIMPLE)
+  taxRate     TaxRate          @relation(fields: [taxRateId], references: [id])
+  tipo        ProductType      @default(SIMPLE)
   imagenUrl   String?
-  archivado   Boolean     @default(false)
+  archivado   Boolean          @default(false)
   createdById String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   variants    ProductVariant[]
 
   @@index([categoryId])
   @@index([archivado])
   @@index([nombre])
+  @@index([tenantId])
 }
 
 model ProductVariant {
-  id           String   @id @default(cuid())
+  id           String              @id @default(cuid())
+  tenantId     String              @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
   productId    String
-  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   nombre       String?
-  esDefault    Boolean  @default(false)
-  sku          String?  @unique
-  codigoBarras String?  @unique
-  precioVenta  Decimal  @db.Decimal(12, 2)
-  precioCompra Decimal  @db.Decimal(12, 2) @default(0)
-  stock        Int      @default(0)
-  stockMinimo  Int      @default(0)
-  disponible   Boolean  @default(true)
-  archivada    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  esDefault    Boolean             @default(false)
+  sku          String?
+  codigoBarras String?
+  precioVenta  Decimal             @db.Decimal(12, 2)
+  precioCompra Decimal             @default(0) @db.Decimal(12, 2)
+  stock        Int                 @default(0)
+  stockMinimo  Int                 @default(0)
+  disponible   Boolean             @default(true)
+  archivada    Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   movements    InventoryMovement[]
   saleLines    SaleLine[]
 
+  @@unique([tenantId, sku])
+  @@unique([tenantId, codigoBarras])
   @@index([productId])
   @@index([archivada])
   @@index([sku])
   @@index([codigoBarras])
+  @@index([tenantId])
 }
 
 model InventoryMovement {
   id             String         @id @default(cuid())
+  tenantId       String         @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
   variantId      String
   variant        ProductVariant @relation(fields: [variantId], references: [id])
   tipo           MovementType
@@ -210,34 +251,41 @@ model InventoryMovement {
   @@index([variantId, createdAt])
   @@index([tipo, createdAt])
   @@index([createdAt])
+  @@index([tenantId])
 }
 
 // --- Bloque 3: Clientes ---
 
 model Customer {
-  id                String   @id @default(cuid())
-  nombre            String
-  telefono          String?  @unique
-  correo            String?  @unique
-  direccion         String?
-  notas             String?
+  id        String  @id @default(cuid())
+  tenantId  String  @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  nombre    String
+  telefono  String?
+  correo    String?
+  direccion String?
+  notas     String?
 
-  rfc               String?  @unique
+  rfc               String?
   razonSocial       String?
   regimenFiscalCode String?
   usoCfdiCode       String?
   cpFiscal          String?
   correoFacturacion String?
 
-  esGenerico        Boolean  @default(false)
-  archivado         Boolean  @default(false)
-  createdById       String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  compras           Sale[]
+  esGenerico  Boolean  @default(false)
+  archivado   Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  compras     Sale[]
 
+  @@unique([tenantId, telefono])
+  @@unique([tenantId, correo])
+  @@unique([tenantId, rfc])
   @@index([archivado])
   @@index([nombre])
+  @@index([tenantId])
 }
 
 // --- Bloque 4: Ventas ---
@@ -264,65 +312,74 @@ enum CashMovementType {
 }
 
 model Sale {
-  id                 String     @id @default(cuid())
-  folio              String     @unique
-  estado             SaleStatus @default(COMPLETADA)
-  customerId         String
-  customer           Customer   @relation(fields: [customerId], references: [id])
-  subtotal           Decimal    @db.Decimal(12, 2)
-  descuentoLineas    Decimal    @db.Decimal(12, 2)
-  descuentoTicket    Decimal    @db.Decimal(12, 2)
-  impuestos          Decimal    @db.Decimal(12, 2)
-  total              Decimal    @db.Decimal(12, 2)
-  pagado             Decimal    @db.Decimal(12, 2)
-  cambio             Decimal    @db.Decimal(12, 2)
-  requiereFactura    Boolean    @default(false)
-  datosFiscales      Json?
-  canceladaEn        DateTime?
-  canceladaPorId     String?
-  canceladaPor       User?      @relation("CanceladaPor", fields: [canceladaPorId], references: [id])
-  motivoCancelacion  String?
-  cajeroId           String
-  cajero             User       @relation("Cajero", fields: [cajeroId], references: [id])
-  cashSessionId      String?
-  cashSession        CashSession? @relation(fields: [cashSessionId], references: [id])
-  createdAt          DateTime   @default(now())
-  lines              SaleLine[]
-  payments           Payment[]
-  returns            Return[]
+  id                String       @id @default(cuid())
+  tenantId          String       @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  folio             String
+  estado            SaleStatus   @default(COMPLETADA)
+  customerId        String
+  customer          Customer     @relation(fields: [customerId], references: [id])
+  subtotal          Decimal      @db.Decimal(12, 2)
+  descuentoLineas   Decimal      @db.Decimal(12, 2)
+  descuentoTicket   Decimal      @db.Decimal(12, 2)
+  impuestos         Decimal      @db.Decimal(12, 2)
+  total             Decimal      @db.Decimal(12, 2)
+  pagado            Decimal      @db.Decimal(12, 2)
+  cambio            Decimal      @db.Decimal(12, 2)
+  requiereFactura   Boolean      @default(false)
+  datosFiscales     Json?
+  canceladaEn       DateTime?
+  canceladaPorId    String?
+  canceladaPor      User?        @relation("CanceladaPor", fields: [canceladaPorId], references: [id])
+  motivoCancelacion String?
+  cajeroId          String
+  cajero            User         @relation("Cajero", fields: [cajeroId], references: [id])
+  cashSessionId     String?
+  cashSession       CashSession? @relation(fields: [cashSessionId], references: [id])
+  createdAt         DateTime     @default(now())
+  lines             SaleLine[]
+  payments          Payment[]
+  returns           Return[]
 
+  @@unique([tenantId, folio])
   @@index([createdAt])
   @@index([estado, createdAt])
   @@index([customerId])
   @@index([cajeroId])
   @@index([cashSessionId])
+  @@index([tenantId])
 }
 
 model SaleLine {
-  id                          String         @id @default(cuid())
-  saleId                      String
-  sale                        Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  variantId                   String
-  variant                     ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
-  productoNombre              String
-  varianteNombre              String?
-  sku                         String?
-  cantidad                    Int
-  precioUnitario              Decimal        @db.Decimal(12, 2)
-  tasaImpuesto                Decimal        @db.Decimal(5, 4)
-  descuentoMonto              Decimal        @db.Decimal(12, 2)
-  descuentoTicketProrrateado  Decimal        @db.Decimal(12, 2)
-  baseNeta                    Decimal        @db.Decimal(12, 2)
-  impuesto                    Decimal        @db.Decimal(12, 2)
-  total                       Decimal        @db.Decimal(12, 2)
-  returnLines                 ReturnLine[]
+  id                         String         @id @default(cuid())
+  tenantId                   String         @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant                     Tenant         @relation(fields: [tenantId], references: [id])
+  saleId                     String
+  sale                       Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  variantId                  String
+  variant                    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  productoNombre             String
+  varianteNombre             String?
+  sku                        String?
+  cantidad                   Int
+  precioUnitario             Decimal        @db.Decimal(12, 2)
+  tasaImpuesto               Decimal        @db.Decimal(5, 4)
+  descuentoMonto             Decimal        @db.Decimal(12, 2)
+  descuentoTicketProrrateado Decimal        @db.Decimal(12, 2)
+  baseNeta                   Decimal        @db.Decimal(12, 2)
+  impuesto                   Decimal        @db.Decimal(12, 2)
+  total                      Decimal        @db.Decimal(12, 2)
+  returnLines                ReturnLine[]
 
   @@index([saleId])
   @@index([variantId])
+  @@index([tenantId])
 }
 
 model Payment {
   id        String        @id @default(cuid())
+  tenantId  String        @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
   saleId    String
   sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   metodo    PaymentMethod
@@ -330,11 +387,14 @@ model Payment {
   createdAt DateTime      @default(now())
 
   @@index([saleId])
+  @@index([tenantId])
 }
 
 model Return {
   id              String        @id @default(cuid())
-  folio           String        @unique
+  tenantId        String        @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  folio           String
   saleId          String
   sale            Sale          @relation(fields: [saleId], references: [id], onDelete: Restrict)
   subtotal        Decimal       @db.Decimal(12, 2)
@@ -349,13 +409,17 @@ model Return {
   createdAt       DateTime      @default(now())
   lines           ReturnLine[]
 
+  @@unique([tenantId, folio])
   @@index([saleId])
   @@index([createdAt])
   @@index([cashSessionId])
+  @@index([tenantId])
 }
 
 model ReturnLine {
   id         String   @id @default(cuid())
+  tenantId   String   @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
   returnId   String
   return     Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
   saleLineId String
@@ -368,18 +432,25 @@ model ReturnLine {
 
   @@index([returnId])
   @@index([saleLineId])
+  @@index([tenantId])
 }
 
 model FolioCounter {
-  serie String @id
-  valor Int    @default(0)
+  tenantId String @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  serie    String
+  valor    Int    @default(0)
+
+  @@id([tenantId, serie])
 }
 
 // --- Bloque 5: Caja ---
 
 model CashSession {
   id                      String            @id @default(cuid())
-  folio                   String            @unique
+  tenantId                String            @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant                  Tenant            @relation(fields: [tenantId], references: [id])
+  folio                   String
   estado                  CashSessionStatus @default(ABIERTA)
   fondoApertura           Decimal           @db.Decimal(12, 2)
   abiertaPorId            String
@@ -403,28 +474,35 @@ model CashSession {
   sales                   Sale[]
   returns                 Return[]
 
+  @@unique([tenantId, folio])
   @@index([estado])
   @@index([abiertaEn])
+  @@index([tenantId])
 }
 
 model CashMovement {
-  id        String          @id @default(cuid())
+  id        String           @id @default(cuid())
+  tenantId  String           @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
   sessionId String
-  session   CashSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   CashSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   tipo      CashMovementType
-  monto     Decimal         @db.Decimal(12, 2)
+  monto     Decimal          @db.Decimal(12, 2)
   motivo    String
   actorId   String
-  actor     User            @relation("ActorMovimientoCaja", fields: [actorId], references: [id])
-  createdAt DateTime        @default(now())
+  actor     User             @relation("ActorMovimientoCaja", fields: [actorId], references: [id])
+  createdAt DateTime         @default(now())
 
   @@index([sessionId])
+  @@index([tenantId])
 }
 
 // --- Bloque 7: Asistencia ---
 
 model AttendanceRecord {
   id                String    @id @default(cuid())
+  tenantId          String    @default(dbgenerated("current_setting('app.tenant_id', true)"))
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
   userId            String
   user              User      @relation("AsistenciaUsuario", fields: [userId], references: [id])
   fecha             String
@@ -441,4 +519,98 @@ model AttendanceRecord {
   @@unique([userId, fecha])
   @@index([fecha])
   @@index([userId, fecha])
+  @@index([tenantId])
+}
+
+// --- Multi-tenant: plataforma ---
+
+enum TenantStatus {
+  PRUEBA
+  ACTIVO
+  SUSPENDIDO
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  maxUsuarios   Int
+  maxSucursales Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tenants       Tenant[]
+}
+
+model Tenant {
+  id                 String              @id @default(cuid())
+  slug               String              @unique
+  nombre             String
+  estado             TenantStatus        @default(PRUEBA)
+  planId             String
+  plan               Plan                @relation(fields: [planId], references: [id])
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  fiscalConfig       TenantFiscalConfig?
+  users              User[]
+  roles              Role[]
+  rolePermissions    RolePermission[]
+  sessions           Session[]
+  activityLogs       ActivityLog[]
+  appSettings        AppSetting[]
+  taxRates           TaxRate[]
+  categories         Category[]
+  products           Product[]
+  productVariants    ProductVariant[]
+  inventoryMovements InventoryMovement[]
+  customers          Customer[]
+  sales              Sale[]
+  saleLines          SaleLine[]
+  payments           Payment[]
+  returns            Return[]
+  returnLines        ReturnLine[]
+  folioCounters      FolioCounter[]
+  cashSessions       CashSession[]
+  cashMovements      CashMovement[]
+  attendanceRecords  AttendanceRecord[]
+
+  @@index([estado])
+}
+
+model TenantFiscalConfig {
+  tenantId                String   @id
+  tenant                  Tenant   @relation(fields: [tenantId], references: [id])
+  rfcEmisor               String?
+  razonSocial             String?
+  regimenFiscalCode       String?
+  csdCertificado          Bytes?
+  csdLlaveCifrada         Bytes?
+  csdPasswordCifrada      Bytes?
+  pacProveedor            String?
+  pacCredencialesCifradas Bytes?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model PlatformAdmin {
+  id           String                 @id @default(cuid())
+  nombre       String
+  email        String                 @unique
+  passwordHash String
+  createdAt    DateTime               @default(now())
+  sessions     PlatformAdminSession[]
+}
+
+model PlatformAdminSession {
+  id              String        @id @default(cuid())
+  tokenHash       String        @unique
+  platformAdminId String
+  platformAdmin   PlatformAdmin @relation(fields: [platformAdminId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  expiresAt       DateTime
+  lastActivityAt  DateTime
+  ip              String?
+  userAgent       String?
+  revokedAt       DateTime?
+
+  @@index([platformAdminId])
+  @@index([expiresAt])
 }

@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { requirePermission } from '@/lib/auth/context';
 import { getReturn } from '@/lib/sales/returns';
 import { money, METODO_LABEL, fmtFechaMX } from '../../types';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,9 +17,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default async function DevolucionDetallePage(props: {
-  params: Promise<{ id: string }>;
-}) {
+type DevolucionDetallePageProps = { params: Promise<{ id: string }> };
+
+export default async function DevolucionDetallePage(props: DevolucionDetallePageProps) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderDevolucionDetallePage(props));
+}
+
+async function renderDevolucionDetallePage(props: DevolucionDetallePageProps) {
   await requirePermission('ventas.ver');
   const { id } = await props.params;
 

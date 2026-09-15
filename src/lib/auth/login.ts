@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { verifyPassword, hashPassword } from './password';
 import { createSession } from './session';
 import { checkLoginRateLimit, recordLoginFailure, clearLoginFailures } from './rate-limit';
@@ -28,7 +28,9 @@ export async function attemptLogin(input: Ctx): Promise<Result> {
   const rl = checkLoginRateLimit(key);
   if (rl.blocked) return { ok: false, reason: 'rate_limited', retryAfterSec: rl.retryAfterSec };
 
-  const user = await db.user.findUnique({ where: { email } });
+  const user = await db.user.findUnique({
+    where: { tenantId_email: { tenantId: getCurrentTenantId(), email } },
+  });
   const hash = user?.passwordHash ?? (await getDummyHash());
   const passwordOk = await verifyPassword(hash, input.password); // se ejecuta siempre (timing)
 

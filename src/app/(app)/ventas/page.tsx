@@ -2,13 +2,19 @@ import Link from 'next/link';
 import { requirePermission } from '@/lib/auth/context';
 import { can } from '@/lib/auth/rbac';
 import { listCategoryTree } from '@/lib/catalog/categories';
-import { db } from '@/lib/db';
+import { db, withTenant } from '@/lib/db';
 import { getOpenCashSession } from '@/lib/cash/sessions';
 import { CashierScreen } from './CashierScreen';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function VentasPage() {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, renderVentasPage);
+}
+
+async function renderVentasPage() {
   const actor = await requirePermission('ventas.crear');
 
   const [tree, generico, cajaAbierta] = await Promise.all([

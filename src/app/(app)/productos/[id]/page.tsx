@@ -12,6 +12,8 @@ import { flattenCategories } from '../categoryOptions';
 import { ProductForm } from '../ProductForm';
 import { VariantEditor } from '../VariantEditor';
 import { ArchiveRestoreForm, DisponibilidadForm } from '../ProductAdminActions';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +27,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default async function ProductoDetallePage(props: { params: Promise<{ id: string }> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderProductoDetallePage(props));
+}
+
+async function renderProductoDetallePage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('productos.ver');
   const { id } = await props.params;
 

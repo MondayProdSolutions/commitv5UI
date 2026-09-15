@@ -31,4 +31,29 @@ describe('decideRedirect', () => {
     expect(decideRedirect({ pathname: '/login', hasSessionCookie: false, sessionStatus: 'invalid', mustChangePassword: false }))
       .toEqual({ type: 'next' });
   });
+
+  it('deja pasar /plataforma/login sin sesión de tenant (usa PlatformAdminSession, no esta sesión)', () => {
+    expect(decideRedirect({ pathname: '/plataforma/login', hasSessionCookie: false, sessionStatus: 'invalid', mustChangePassword: false }))
+      .toEqual({ type: 'next' });
+  });
+
+  it('deja pasar /plataforma (raíz del plano de Super Admin) sin sesión de tenant', () => {
+    expect(decideRedirect({ pathname: '/plataforma', hasSessionCookie: false, sessionStatus: 'invalid', mustChangePassword: false }))
+      .toEqual({ type: 'next' });
+  });
+
+  it('deja pasar cualquier ruta anidada bajo /plataforma/** sin sesión de tenant', () => {
+    expect(decideRedirect({ pathname: '/plataforma/tenants/nuevo', hasSessionCookie: false, sessionStatus: 'invalid', mustChangePassword: false }))
+      .toEqual({ type: 'next' });
+  });
+
+  it('deja pasar /plataforma/** incluso con sesión de tenant ok (no la redirige a /dashboard)', () => {
+    expect(decideRedirect({ ...base, pathname: '/plataforma/login' }))
+      .toEqual({ type: 'next' });
+  });
+
+  it('NO confunde /plataformaXYZ (sin separador) con el prefijo /plataforma/**', () => {
+    expect(decideRedirect({ pathname: '/plataformaXYZ', hasSessionCookie: false, sessionStatus: 'invalid', mustChangePassword: false }))
+      .toEqual({ type: 'redirect', to: '/login?motivo=sesion_cerrada' });
+  });
 });

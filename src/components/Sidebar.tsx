@@ -1,8 +1,5 @@
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { visibleNav } from '@/lib/nav';
-import { can } from '@/lib/auth/rbac';
-import { stockAlertsCount } from '@/lib/inventory/stock';
 import type { AuthUser } from '@/lib/auth/rbac';
 import { Badge } from './ui/Badge';
 import { NavIcon } from './NavIcon';
@@ -11,20 +8,29 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export async function Sidebar({ user }: { user: AuthUser }) {
-  const pathname = (await headers()).get('x-pathname') ?? '';
+// Antes un Server Component `async` que llamaba a `stockAlertsCount()` (db)
+// directamente. Al renderizarse vía JSX como hijo de (app)/layout.tsx, un
+// componente async separado no hereda el AsyncLocalStorage de `withTenant`
+// del layout (mismo problema que layout → page) — confirmado con un 500 real
+// ("db.productVariant llamado sin contexto de tenant activo") al probar el
+// dashboard con un usuario con permiso `inventario.ver`. Ahora es síncrono;
+// quien lo use (AppLayout) calcula `stockAlerts` dentro de su propio
+// `withTenant` y lo pasa como prop.
+export function Sidebar({
+  user,
+  pathname,
+  stockAlerts,
+}: {
+  user: AuthUser;
+  pathname: string;
+  stockAlerts: number;
+}) {
   const items = visibleNav(user);
 
   // Riel compacto (solo iconos) en la pantalla del cajero, para dar aire a la
   // cuadrícula táctil de productos. Solo la vista exacta `/ventas`; las
   // subrutas (historial, devoluciones, detalle) conservan el sidebar completo.
   const collapsed = pathname === '/ventas';
-
-  // Fetch badge counts for items that need them
-  let stockAlerts = 0;
-  if (items.some((i) => i.badge === 'stock' && can(user, 'inventario.ver'))) {
-    stockAlerts = await stockAlertsCount();
-  }
 
   return (
     <aside className="border-r border-line bg-surface md:min-h-screen">

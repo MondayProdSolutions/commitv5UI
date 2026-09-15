@@ -12,6 +12,8 @@ import { Card } from '@/components/ui/Card';
 import { CancelSaleForm } from '../CancelSaleForm';
 import { leerDatosFiscales } from '../TicketView';
 import { money, METODO_LABEL, fmtFechaMX } from '../types';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +29,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export default async function VentaDetallePage(props: { params: Promise<{ id: string }> }) {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, () => renderVentaDetallePage(props));
+}
+
+async function renderVentaDetallePage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('ventas.ver');
   const { id } = await props.params;
 

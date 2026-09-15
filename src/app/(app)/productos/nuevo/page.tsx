@@ -4,10 +4,17 @@ import { getTaxRates } from '@/lib/taxes';
 import { listCategoryTree } from '@/lib/catalog/categories';
 import { flattenCategories } from '../categoryOptions';
 import { ProductForm } from '../ProductForm';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NuevoProductoPage() {
+  const tenantId = await requireRequestTenantId();
+  return withTenant(tenantId, renderNuevoProductoPage);
+}
+
+async function renderNuevoProductoPage() {
   await requirePermission('productos.crear');
 
   const [taxRates, tree] = await Promise.all([getTaxRates(), listCategoryTree({ incluirArchivadas: false })]);

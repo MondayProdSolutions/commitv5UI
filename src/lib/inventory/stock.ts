@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 
 export type LowStockRow = {
   variantId: string;
@@ -10,8 +10,10 @@ export type LowStockRow = {
   deficit: number;
 };
 
-// Module-level cache: TTL 30,000 ms
-let cache: { value: number; at: number } | null = null;
+// Module-level cache, keyed by tenant: TTL 30,000 ms. Un Map (no un solo
+// valor global) evita que el conteo de un tenant se filtre al sidebar de
+// otro durante la ventana de TTL.
+const cache = new Map<string, { value: number; at: number }>();
 const CACHE_TTL = 30_000;
 
 /**
@@ -77,11 +79,13 @@ export async function lowStockVariants({
  * Cache is invalidated by invalidateStockAlertsCache().
  */
 export async function stockAlertsCount(): Promise<number> {
+  const tenantId = getCurrentTenantId();
   const now = Date.now();
 
   // Check cache hit within TTL
-  if (cache !== null && now - cache.at < CACHE_TTL) {
-    return cache.value;
+  const cached = cache.get(tenantId);
+  if (cached !== undefined && now - cached.at < CACHE_TTL) {
+    return cached.value;
   }
 
   // Cache miss: recompute
@@ -96,15 +100,15 @@ export async function stockAlertsCount(): Promise<number> {
   const count = variants.filter((v) => v.stock <= v.stockMinimo).length;
 
   // Store in cache
-  cache = { value: count, at: now };
+  cache.set(tenantId, { value: count, at: now });
 
   return count;
 }
 
 /**
- * Invalidates the low-stock alerts cache.
+ * Invalidates the low-stock alerts cache for the current tenant.
  * Called by recordMovement after an inventory change.
  */
 export function invalidateStockAlertsCache(): void {
-  cache = null;
+  cache.delete(getCurrentTenantId());
 }
