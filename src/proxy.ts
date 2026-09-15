@@ -11,14 +11,39 @@ import { withPlatformAdmin, withTenant, db } from '@/lib/db';
 // here). That lets us call validateSession / loadAuthUser — and therefore the
 // Prisma pg adapter — directly, with no self-fetch to a Route Handler.
 
-const IGNORE = [/^\/_next\//, /^\/favicon\.ico$/, /^\/api\/session\//, /^\/api\/health$/];
+// Rutas que no necesitan una consulta a DB para resolver el tenant (assets,
+// health) — a diferencia de antes, /api/session/** YA NO está aquí: heartbeat
+// (la única ruta bajo /api/session/**) sí necesita el x-tenant-id que este
+// proxy resuelve por subdominio (ver SKIP_AUTH más abajo y la nota junto al
+// `matcher`, al final del archivo).
+const SKIP_TENANT_RESOLUTION = [/^\/_next\//, /^\/favicon\.ico$/, /^\/api\/health$/];
+
+// Rutas que manejan su propia autenticación/autorización y no pasan por
+// decideRedirect (ni por la validación de sesión de tenant que lo alimenta).
+// /api/session/** sigue aquí a propósito: heartbeat valida su propia cookie de
+// sesión "a mano" (ver src/app/api/session/heartbeat/route.ts) y no debe
+// redirigirse como una página.
+const SKIP_AUTH = [/^\/_next\//, /^\/favicon\.ico$/, /^\/api\/session\//, /^\/api\/health$/];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // El cliente nunca debe poder fijar estos headers: el proxy es la única
+  // autoridad que los establece más abajo, a partir del Host resuelto contra
+  // DB — nunca a partir de lo que el request ya traía. Sin este strip, un
+  // x-tenant-id enviado por el cliente pasaría intacto en cualquier ruta
+  // ignorada o sin subdominio resuelto (dominio raíz, slug reservado, tenant
+  // desconocido) hasta quien sea que lea ese header más adelante
+  // (requireRequestTenantId). Hoy RLS sigue filtrando correctamente pase lo
+  // que pase con el header, así que no se encontró una explotación real — pero
+  // es un límite de confianza no forzado, y basta con que algo futuro llegue a
+  // confiar en el header de forma más directa para que se vuelva explotable.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.delete('x-tenant-id');
+  requestHeaders.delete('x-tenant-slug');
+
   // Expose the current path to Server Actions / RSC via request headers
   // (requirePermission reads `x-pathname` for audit logging) and echo it back.
-  const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-pathname', pathname);
   const pass = () => {
     const res = NextResponse.next({ request: { headers: requestHeaders } });
@@ -27,7 +52,7 @@ export async function proxy(req: NextRequest) {
   };
 
   // Resolución de tenant por subdominio (Host header). No aplica a rutas
-  // ignoradas (assets, health, sesión) — esas no necesitan una consulta a DB.
+  // ignoradas (assets, health) — esas no necesitan una consulta a DB.
   const host = req.headers.get('host') ?? '';
   const slug = resolveTenantSlug(host);
 
@@ -35,7 +60,7 @@ export async function proxy(req: NextRequest) {
   // sólo puede validarse dentro del contexto de ESTE tenant.
   let tenantId: string | null = null;
 
-  if (slug && !IGNORE.some((re) => re.test(pathname))) {
+  if (slug && !SKIP_TENANT_RESOLUTION.some((re) => re.test(pathname))) {
     const tenant = await withPlatformAdmin(() => db.tenant.findUnique({ where: { slug } }));
     if (!tenant) {
       return NextResponse.rewrite(new URL('/tenant-no-encontrado', req.url));
@@ -48,7 +73,7 @@ export async function proxy(req: NextRequest) {
     tenantId = tenant.id;
   }
 
-  if (IGNORE.some((re) => re.test(pathname))) return pass();
+  if (SKIP_AUTH.some((re) => re.test(pathname))) return pass();
 
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const hasSessionCookie = Boolean(token);
@@ -88,6 +113,16 @@ export async function proxy(req: NextRequest) {
   return pass();
 }
 
+// Fix 2 (revisión final de rama): /api/session ya NO está excluido del
+// matcher. Antes, el proxy no corría en absoluto para /api/session/**
+// (heartbeat), así que nunca resolvía ni fijaba x-tenant-id para esa ruta —
+// heartbeat llamaba a requireRequestTenantId() confiando por completo en
+// cualquier x-tenant-id que el cliente hubiera enviado (ver el test de
+// heartbeat, que hoy mockea next/headers directamente para simular esto). Con
+// el strip de headers de arriba y el proxy corriendo para esta ruta, el
+// x-tenant-id que heartbeat lee ahora siempre viene del subdominio real,
+// igual que cualquier otra ruta de la app (p. ej. /api/asistencia/foto/**).
+// SKIP_AUTH (arriba) sigue evitando que decideRedirect actúe sobre esta ruta.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/session).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
