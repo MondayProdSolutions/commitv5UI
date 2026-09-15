@@ -6,6 +6,7 @@ import { getIdleTimeoutMinutes } from '@/lib/settings';
 import { Sidebar } from '@/components/Sidebar';
 import { Topbar } from '@/components/Topbar';
 import { InactivityWatcher } from '@/components/InactivityWatcher';
+import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <main className="flex-1 p-6">{children}</main>
       </div>
       <InactivityWatcher idleTimeoutMinutes={idle} />
+      <AssistantWidget supportEmail={process.env.SUPPORT_EMAIL} supportPhone={process.env.SUPPORT_PHONE} />
     </div>
   );
 }
