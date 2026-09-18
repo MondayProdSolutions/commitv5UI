@@ -4,6 +4,7 @@ import { ValidationError, ForbiddenError } from '@/lib/errors';
 import { ALL_PERMISSION_KEYS } from '@/lib/auth/rbac';
 import { hashPassword } from '@/lib/auth/password';
 import { createPlatformSession } from '@/lib/platform-auth/session';
+import { openCashSession } from '@/lib/cash/sessions';
 
 const SLUG = 't-platform-tenants';
 const ADMIN_EMAIL = 't-platform-tenants-admin@tuapp.com';
@@ -20,14 +21,20 @@ vi.mock('next/headers', () => ({
 
 import { createTenant, listTenants, setTenantEstado } from './tenants';
 
-// Limpieza por capas: User_tenantId_fkey y Role_tenantId_fkey son ON DELETE
-// RESTRICT (ver prisma/migrations/20260914050000_tenant_id_everywhere), así que
-// borrar el Tenant directo falla mientras existan User/Role dependientes que
-// createTenant siembra. RolePermission cae solo (onDelete: Cascade en Role).
+// Limpieza por capas: User_tenantId_fkey, Role_tenantId_fkey y
+// FolioCounter_tenantId_fkey son ON DELETE RESTRICT (ver
+// prisma/migrations/20260914050000_tenant_id_everywhere), así que borrar el
+// Tenant directo falla mientras existan User/Role/FolioCounter dependientes
+// que createTenant siembra. RolePermission cae solo (onDelete: Cascade en Role).
+// CashSession_abiertaPorId_fkey también es RESTRICT contra User — hay que
+// borrar la caja (que el test de folios abre) antes que su usuario.
 async function cleanup() {
   await withPlatformAdmin(async () => {
+    await db.activityLog.deleteMany({ where: { tenant: { slug: SLUG } } });
+    await db.cashSession.deleteMany({ where: { tenant: { slug: SLUG } } });
     await db.user.deleteMany({ where: { tenant: { slug: SLUG } } });
     await db.role.deleteMany({ where: { tenant: { slug: SLUG } } });
+    await db.folioCounter.deleteMany({ where: { tenant: { slug: SLUG } } });
     await db.tenant.deleteMany({ where: { slug: SLUG } });
     await db.platformAdmin.deleteMany({ where: { email: ADMIN_EMAIL } });
   });
@@ -77,6 +84,37 @@ describe('createTenant', () => {
 
       const permisos = await db.rolePermission.findMany({ where: { roleId: rolAdmin.id } });
       expect(permisos.map((p) => p.permiso).sort()).toEqual([...ALL_PERMISSION_KEYS].sort());
+    });
+  });
+
+  // Regresión: createTenant no sembraba FolioCounter (V/D/C) — cualquier tenant
+  // creado desde /plataforma quedaba con caja/ventas/devoluciones rotas desde
+  // el primer uso (nextFolio lanzaba "FolioCounter '<serie>' no existe").
+  it('deja folios listos: se puede abrir caja de inmediato en el tenant nuevo', async () => {
+    const plan = await withPlatformAdmin(() =>
+      db.plan.upsert({
+        where: { nombre: 'Estándar' },
+        update: {},
+        create: { nombre: 'Estándar', maxUsuarios: 10, maxSucursales: 3 },
+      }),
+    );
+
+    const { tenantId } = await createTenant({
+      slug: SLUG,
+      nombre: 'Negocio de prueba',
+      planId: plan.id,
+      adminNombre: 'Admin',
+      adminEmail: 'folios@negocio-prueba.com',
+      adminPassword: 'xxxxxxxxxx',
+    });
+
+    await withTenant(tenantId, async () => {
+      const series = await db.folioCounter.findMany({ where: { tenantId } });
+      expect(series.map((s) => s.serie).sort()).toEqual(['C', 'D', 'V']);
+
+      const admin = await db.user.findFirstOrThrow({ where: { email: 'folios@negocio-prueba.com' } });
+      const { folio } = await openCashSession(admin.id, 0, null);
+      expect(folio).toBe('C-000001');
     });
   });
 

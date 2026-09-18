@@ -9,7 +9,7 @@ alterar UI ni funcionalidad observable para el usuario final.
 Todo lo listado aquí se validó ejecutando de verdad la aplicación (Postgres
 embebido real, `next dev` y `next build && next start`), no se dedujo solo
 leyendo código: `tsc --noEmit`, `eslint .` y `vitest run` (unit + integration,
-711 tests) se corrieron después de cada cambio. `playwright test` (e2e) se
+672 tests) se corrieron después de cada cambio. `playwright test` (e2e) se
 investigó a fondo (sección 7) pero no completa en este entorno Windows por una
 limitación de infraestructura de test, no de la aplicación.
 
@@ -30,9 +30,13 @@ worktree huérfano, se eliminaron 2 dependencias sin uso, se añadió una forma 
 levantar todo el entorno con un solo comando, y se hizo una revisión línea por
 línea de todos los procesos financieramente críticos (ventas, devoluciones,
 caja, inventario) y de seguridad (auth, RBAC, chatbot, secretos fiscales,
-aislamiento por tenant en cada endpoint) sin encontrar defectos adicionales que
-corregir. **No se modificó ningún componente visual, texto, ruta, flujo de
-usuario, regla de negocio ni contrato de API/base de datos.**
+aislamiento por tenant en cada endpoint). Adicionalmente, al probar la app
+real después de la primera publicación, se encontró y corrigió un **bug
+crítico**: `createTenant()` no sembraba los contadores de folio, dejando caja,
+ventas y devoluciones rotas para todo negocio creado desde el panel de Super
+Admin (sección 13) — ya corregido, con datos existentes reparados y prueba de
+regresión agregada. **No se modificó ningún componente visual, texto, ruta,
+flujo de usuario, regla de negocio ni contrato de API/base de datos.**
 
 ## 2. Estado inicial del proyecto
 
@@ -373,6 +377,8 @@ clasificación de `embedded-postgres` en `package.json`.
 | `scripts/with-db.mjs` | Creado — orquestador de un solo comando |
 | `playwright.config.ts` | `baseURL`/`webServer.url` apuntan al subdominio del tenant sembrado (`default.localhost`) en vez del dominio raíz |
 | `README.md` | Documenta el flujo de una sola terminal |
+| `src/lib/platform/tenants.ts` | `createTenant()` ahora siembra `FolioCounter` (V/D/C) para el tenant nuevo (sección 13) |
+| `src/lib/platform/tenants.itest.ts` | Prueba de regresión (crea tenant → abre caja); `cleanup()` borra `ActivityLog`/`CashSession`/`FolioCounter` antes del `Tenant` |
 | `docs/AUDITORIA_OPTIMIZACION_FINAL.md` | Reescrito como documento único (este archivo) |
 | `docs/ESTABILIZACION_Y_AUDITORIA.md` | Eliminado — consolidado dentro de este documento |
 
@@ -386,7 +392,7 @@ modificado en ninguna pasada de esta auditoría.
 | `tsc --noEmit` | Sin errores |
 | `eslint .` | Sin errores ni warnings |
 | `vitest run --project unit` | 36/36 archivos, 273/273 tests |
-| `vitest run --project integration` | 66/66 archivos, 398/398 tests (RLS/aislamiento por tenant, auth, roles, sesiones, POS/inventario/caja/ventas) |
+| `vitest run --project integration` | 66/66 archivos, 399/399 tests (RLS/aislamiento por tenant, auth, roles, sesiones, POS/inventario/caja/ventas, incluida la regresión de folios de la sección 13) |
 | `next build` | OK — mismos 3 warnings preexistentes de Turbopack (sección 6), sin warnings nuevos |
 | `playwright test` (e2e, navegador real) | No completa en este Windows — deuda de infraestructura de test, ver sección 7. No bloquea CI (ya es manual/opcional). |
 | `npm audit --omit=dev` | 0 vulnerabilidades en dependencias de producción |
@@ -408,7 +414,62 @@ modificado en ninguna pasada de esta auditoría.
   ciclo de vida de `globalSetup`/`globalTeardown` de Playwright, o actualizar
   `embedded-postgres` para que spawnee `detached` en Windows.
 
-## 13. Comandos exactos
+## 13. Hallazgo crítico post-publicación — 2026-09-18 (probado a mano en la app real)
+
+Después de subir la primera versión de este reporte, el usuario probó la app
+real (Super Admin + POS) y reportó un error real al abrir caja en un negocio
+creado desde `/plataforma`:
+
+```
+FolioCounter 'C' no existe
+  at nextFolio (src/lib/sales/folio.ts:23:28)
+  at (src/lib/cash/sessions.ts:47:19)
+  at abrirCajaAction (src/app/(app)/caja/actions.ts:44:17)
+```
+
+### Causa raíz confirmada
+
+`createTenant()` (`src/lib/platform/tenants.ts`, usado por "+ Crear negocio"
+en `/plataforma`) crea el `Tenant`, su `Role` "Administrador" con todos los
+permisos, y el primer `User` — pero **nunca sembraba `FolioCounter`** (series
+`V`/`D`/`C`). `nextFolio()` hace `UPDATE "FolioCounter" ... WHERE tenantId =
+... AND serie = ...` y lanza si no encuentra fila — así que **cualquier
+negocio creado desde el panel de Super Admin quedaba con caja, ventas y
+devoluciones rotas desde el primer uso**, porque las tres funciones que las
+crean (`openCashSession`, `createSale`, `createReturn`) dependen de
+`nextFolio`. El tenant `default` (sembrado por `prisma/seed.ts`, que sí crea
+`FolioCounter`) nunca mostró el problema — por eso no se detectó en la
+auditoría de código: ningún test de integración ejercitaba "crear tenant →
+abrir caja" de punta a punta, solo verificaba que el usuario/rol quedaran
+bien armados.
+
+Confirmado en la base de datos del usuario: los 4 negocios creados desde
+Super Admin (`croqueria`, `pepo`, `tesla`, `lolo`) no tenían ninguna fila de
+`FolioCounter`; `default` sí.
+
+### Corrección aplicada
+
+- `src/lib/platform/tenants.ts`: `createTenant()` ahora siembra
+  `FolioCounter` (V/D/C, valor 0) para el tenant nuevo, dentro de la misma
+  transacción que ya crea rol/permisos/usuario.
+- Se rellenaron directamente en la base de datos local del usuario las filas
+  de `FolioCounter` faltantes para sus 4 negocios existentes, para no
+  obligarlo a recrearlos.
+- `src/lib/platform/tenants.itest.ts`: se agregó una prueba de regresión que
+  crea un tenant y abre caja de inmediato (`openCashSession`), verificando
+  que devuelve el folio `C-000001` — reproduce exactamente el escenario que
+  falló. De paso se corrigió `cleanup()`, que no borraba `ActivityLog` /
+  `CashSession` / `FolioCounter` antes del `Tenant` (las tres relaciones son
+  `ON DELETE RESTRICT`), lo que rompía la limpieza entre pruebas de este
+  archivo una vez que la nueva prueba empezó a dejar esas filas.
+
+### Validación
+
+`tsc --noEmit` y `eslint .` sin errores; `vitest run --project unit`
+(273/273) y `vitest run --project integration` (399/399, incluida la prueba
+de regresión nueva) en verde tras el fix.
+
+## 14. Comandos exactos
 
 ```bash
 # Base de datos embebida (dev/test)

@@ -65,6 +65,14 @@ export async function createTenant(input: CreateTenantInput): Promise<{ tenantId
       skipDuplicates: true,
     });
 
+    // Folios de venta (V), devolución (D) y caja (C) — sin esto, `nextFolio`
+    // (src/lib/sales/folio.ts) lanza "FolioCounter '<serie>' no existe" en el
+    // primer intento de abrir caja, vender o devolver de este tenant.
+    await db.folioCounter.createMany({
+      data: ['V', 'D', 'C'].map((serie) => ({ tenantId: tenant.id, serie, valor: 0 })),
+      skipDuplicates: true,
+    });
+
     const passwordHash = await hashPassword(input.adminPassword);
     await db.user.create({
       data: {
