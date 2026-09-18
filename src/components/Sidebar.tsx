@@ -1,4 +1,8 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import type { CSSProperties } from 'react';
 import { visibleNav } from '@/lib/nav';
 import type { AuthUser } from '@/lib/auth/rbac';
 import { Badge } from './ui/Badge';
@@ -16,15 +20,21 @@ function isActive(pathname: string, href: string): boolean {
 // dashboard con un usuario con permiso `inventario.ver`. Ahora es síncrono;
 // quien lo use (AppLayout) calcula `stockAlerts` dentro de su propio
 // `withTenant` y lo pasa como prop.
+//
+// `pathname` NO llega como prop del layout: el layout de (app) es un Server
+// Component que persiste entre navegaciones del lado del cliente (Next no lo
+// vuelve a ejecutar en cada <Link>, solo cambia el `children`), así que un
+// `pathname` leído una vez en el layout vía headers() queda congelado en la
+// primera carga — el item activo nunca se actualizaba al navegar. `usePathname()`
+// es un hook de cliente que sí se re-evalúa en cada cambio de ruta.
 export function Sidebar({
   user,
-  pathname,
   stockAlerts,
 }: {
   user: AuthUser;
-  pathname: string;
   stockAlerts: number;
 }) {
+  const pathname = usePathname();
   const items = visibleNav(user);
 
   // Riel compacto (solo iconos) en la pantalla del cajero, para dar aire a la
@@ -33,35 +43,35 @@ export function Sidebar({
   const collapsed = pathname === '/ventas';
 
   return (
-    <aside className="border-r border-line bg-surface md:min-h-screen">
-      <div
-        className={
-          'py-4 text-lg font-extrabold tracking-tight text-ink ' +
-          (collapsed ? 'px-0 text-center' : 'px-4')
-        }
-      >
-        POS
-      </div>
-      <nav aria-label="Navegación principal" className={collapsed ? 'px-2 pb-4' : 'px-2 pb-4'}>
+    <aside
+      className={
+        'sticky top-4 hidden shrink-0 self-start lg:block ' + (collapsed ? 'w-[76px]' : 'w-[224px]')
+      }
+    >
+      <nav aria-label="Navegación principal" className={collapsed ? 'px-2 pb-4' : 'px-3 pb-4'}>
         <ul className="space-y-1">
-          {items.map((item) => {
+          {items.map((item, i) => {
             const active = isActive(pathname, item.href);
             const showBadge = item.badge === 'stock' && stockAlerts > 0;
 
             return (
-              <li key={item.href}>
+              <li
+                key={item.href}
+                className="reveal"
+                style={{ '--reveal-delay': `${i * 30}ms` } as CSSProperties}
+              >
                 <Link
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
                   title={collapsed ? item.label : undefined}
                   className={
-                    'relative flex min-h-11 items-center rounded-control border-l-[3px] text-sm font-semibold transition-colors ' +
+                    'relative flex min-h-11 items-center rounded-pill text-sm font-semibold transition-colors duration-150 ' +
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
-                    (collapsed ? 'justify-center px-0 py-2.5' : 'justify-between px-3 py-2') +
+                    (collapsed ? 'justify-center px-0 py-2.5' : 'justify-between px-3.5 py-2') +
                     ' ' +
                     (active
-                      ? 'border-primary bg-primary-soft text-on-primary-soft'
-                      : 'border-transparent text-ink-muted hover:bg-surface-raised hover:text-ink')
+                      ? 'bg-surface text-ink shadow-card'
+                      : 'text-ink-muted hover:bg-surface-raised hover:text-ink')
                   }
                 >
                   {collapsed ? (

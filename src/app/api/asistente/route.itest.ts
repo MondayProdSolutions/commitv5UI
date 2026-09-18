@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { db } from '@/lib/db';
+import { db, getCurrentTenantId } from '@/lib/db';
 import { createSession } from '@/lib/auth/session';
 import { seedUser } from '@/lib/attendance/__testutil';
 
 const cookieStore = { value: undefined as string | undefined };
+// x-tenant-id: el route handler ahora exige contexto de tenant vía
+// requireRequestTenantId() (igual que heartbeat/route.itest.ts), no solo la
+// cookie de sesión — refleja el fix de src/app/api/asistente/route.ts (faltaba
+// withTenant(), por lo que la ruta real fallaba siempre con "No hay contexto
+// de tenant activo." antes de llegar a Gemini).
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => (cookieStore.value ? { value: cookieStore.value } : undefined) }),
-  headers: async () => new Headers(),
+  headers: async () => new Headers({ 'x-tenant-id': getCurrentTenantId() }),
 }));
 
 import { POST } from './route';
@@ -22,8 +27,11 @@ function req(body: unknown) {
 }
 
 function mockGeminiReply(text: string) {
-  return vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status: 200 }),
+  // Factory, no mockResolvedValue: un Response solo deja leer su body una vez
+  // (`res.json()`), y el test de rate-limit llama a esto varias veces seguidas.
+  return vi.fn().mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status: 200 }),
   );
 }
 

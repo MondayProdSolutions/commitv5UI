@@ -58,6 +58,7 @@ describe('Tenant Platform Models', () => {
         slug: 'test-tenant',
         nombre: 'Test Tenant',
         estado: TENANT_STATUS_VALUES.PRUEBA as TenantStatusType,
+        estadoDesde: new Date(),
         planId: 'test-plan-id',
         createdAt: new Date(),
         updatedAt: new Date(),

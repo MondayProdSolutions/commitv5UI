@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 /*
- * Sistema de diseño POS — dirección "táctil y vibrante" (Toast/Clover), neutral.
- * Aprobada 2026-09-07. Reemplaza el sistema índigo/slate de la FASE 6.
+ * Sistema de diseño POS — identidad de marca "Commit Graphite & Bone".
+ * Aprobada 2026-09-17. Reemplaza el sistema táctil/vibrante (Toast/Clover)
+ * de la FASE anterior. Paleta extraída del artifact de marca del usuario
+ * (grafito + hueso + acento teal); estructura (pills, jerarquía de tarjetas)
+ * inspirada en el template base44 del usuario, sin usar ninguno de sus
+ * assets ni su paleta naranja/terracota.
  *
  * Regla de uso: las pantallas NO usan colores crudos de Tailwind
  * (bg-white, text-slate-700, bg-indigo-600...). Usan estos tokens
@@ -19,24 +23,34 @@
 :root {
   color-scheme: light;
 
-  /* Neutros / superficies */
-  --c-canvas: #f6f8f7;
+  /* Neutros / superficies — hueso */
+  --c-canvas: #f4f2ed;
   --c-surface: #ffffff;
-  --c-surface-raised: #f1f4f3;
-  --c-surface-sunken: #ecefee;
-  --c-ink: #131a19;
-  --c-ink-muted: #55605d;
-  --c-ink-subtle: #838d8a;
-  --c-line: #e2e6e4;
-  --c-line-strong: #cbd1cf;
+  --c-surface-raised: #f2f1ed;
+  --c-surface-sunken: #edeae2;
+  --c-ink: #15171a;
+  --c-ink-muted: #4c4a44;
+  --c-ink-subtle: #8f8c84;
+  --c-line: #dedcd6;
+  --c-line-strong: #c7c3b9;
 
-  /* Primario (teal) */
-  --c-primary: #0f9b8e;
-  --c-primary-hover: #0c8478;
-  --c-primary-active: #0a6f66;
+  /* Tarjeta "hero" de KPI (fondo grafito): fija, NO se redeclara en .dark.
+     Es una superficie de marca como el logo, no contenido que deba invertir
+     con el tema — si usara --c-ink/--c-ink-muted normales, en dark mode
+     --c-ink pasa a hueso claro y el texto quedaría oscuro-sobre-oscuro o
+     directamente invertido, rompiendo la jerarquía visual de la tarjeta. */
+  --c-hero: #15171a;
+  --c-on-hero: #f2f1ed;
+  --c-on-hero-muted: #a8a49b;
+  --c-on-hero-accent: #5fa3a8;
+
+  /* Primario (teal de marca) */
+  --c-primary: #3f7178;
+  --c-primary-hover: #345f65;
+  --c-primary-active: #2b4f54;
   --c-on-primary: #ffffff;
-  --c-primary-soft: #e2f4f2;
-  --c-on-primary-soft: #0b6b62;
+  --c-primary-soft: #e3eeef;
+  --c-on-primary-soft: #2b4f54;
 
   /* Acentos con propósito (color-coding categoría/estado, estilo Clover) */
   --c-accent-blue: #2f6fed;
@@ -64,39 +78,43 @@
   --c-on-danger-soft: #a51b16;
 
   /* Foco */
-  --c-ring: #0f9b8e;
+  --c-ring: #3f7178;
 
-  /* Radios (arriba del sistema viejo de 6-8px) */
+  /* Radios — cards con esquina suave, controles e items de nav en pill */
   --radius-control: 12px;
-  --radius-card: 20px;
+  --radius-card: 32px;
   --radius-pill: 999px;
 
+  /* Curvas de easing (más marcadas que las CSS built-in) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
   /* Sombras — solo light. En dark la elevación es superficie + borde. */
-  --shadow-card: 0 1px 2px rgb(17 26 25 / 0.04), 0 6px 16px rgb(17 26 25 / 0.06);
-  --shadow-pop: 0 8px 28px rgb(17 26 25 / 0.14);
-  --shadow-primary: 0 1px 2px rgb(15 155 142 / 0.25), 0 4px 12px rgb(15 155 142 / 0.22);
+  --shadow-card: 0 1px 2px rgb(21 23 26 / 0.04), 0 6px 16px rgb(21 23 26 / 0.06);
+  --shadow-pop: 0 8px 28px rgb(21 23 26 / 0.14);
+  --shadow-primary: 0 1px 2px rgb(63 113 120 / 0.25), 0 4px 12px rgb(63 113 120 / 0.22);
 }
 
 /* ---------- Paleta cruda: DARK (diseñada desde cero, no invertida) ---------- */
 .dark {
   color-scheme: dark;
 
-  --c-canvas: #0e1211;
-  --c-surface: #171c1b;
-  --c-surface-raised: #1f2624;
-  --c-surface-sunken: #101514;
-  --c-ink: #e8ebea;
-  --c-ink-muted: #a2aba8;
-  --c-ink-subtle: #6d7773;
-  --c-line: #2a312f;
-  --c-line-strong: #3b433f;
+  --c-canvas: #0c0d0e;
+  --c-surface: #15171a;
+  --c-surface-raised: #1c1f23;
+  --c-surface-sunken: #0c0d0e;
+  --c-ink: #f2f1ed;
+  --c-ink-muted: #a8a49b;
+  --c-ink-subtle: #8f8c84;
+  --c-line: #24272c;
+  --c-line-strong: #3a3d42;
 
-  --c-primary: #22c3b6;
-  --c-primary-hover: #38d2c6;
-  --c-primary-active: #4bddd2;
-  --c-on-primary: #04201e;
-  --c-primary-soft: #172f2d;
-  --c-on-primary-soft: #74e2d8;
+  --c-primary: #5fa3a8;
+  --c-primary-hover: #74b3b8;
+  --c-primary-active: #8ac2c6;
+  --c-on-primary: #04161a;
+  --c-primary-soft: #16302f;
+  --c-on-primary-soft: #9fd4d8;
 
   --c-accent-blue: #5b93ff;
   --c-accent-blue-soft: #17243f;
@@ -121,7 +139,7 @@
   --c-danger-soft: #331a1a;
   --c-on-danger-soft: #f6a3a3;
 
-  --c-ring: #22c3b6;
+  --c-ring: #5fa3a8;
 
   --shadow-card: none;
   --shadow-pop: 0 10px 34px rgb(0 0 0 / 0.55);
@@ -139,6 +157,11 @@
   --color-ink-subtle: var(--c-ink-subtle);
   --color-line: var(--c-line);
   --color-line-strong: var(--c-line-strong);
+
+  --color-hero: var(--c-hero);
+  --color-on-hero: var(--c-on-hero);
+  --color-on-hero-muted: var(--c-on-hero-muted);
+  --color-on-hero-accent: var(--c-on-hero-accent);
 
   --color-primary: var(--c-primary);
   --color-primary-hover: var(--c-primary-hover);
@@ -194,4 +217,67 @@ body {
 :focus-visible {
   outline: 2px solid var(--c-ring);
   outline-offset: 2px;
+}
+
+/* ---------- Motion: feedback de presión y entrada escalonada ---------- */
+/* Ver skill de diseño (Emil Kowalski): transform+opacity únicamente, nunca
+   `transition: all`, ease-out para elementos que entran/responden. */
+.press {
+  transition-property: transform, background-color, color, border-color, box-shadow;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+.reveal {
+  opacity: 1;
+  transform: translateY(0);
+  transition-property: opacity, transform, border-color, background-color;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press:active {
+    transform: none;
+  }
+  .reveal {
+    transition-property: opacity, border-color, background-color;
+
+    @starting-style {
+      opacity: 0;
+      transform: none;
+    }
+  }
+}
+
+/* Menú de usuario (<details> nativo): apertura animada sin JS extra.
+   `::details-content` degrada con gracia en navegadores sin soporte —
+   el panel simplemente aparece sin animar, sigue siendo funcional. */
+details.menu-animated::details-content {
+  opacity: 0;
+  transform: scale(0.95);
+  transform-origin: var(--menu-origin, top right);
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out),
+    content-visibility 160ms allow-discrete;
+}
+details.menu-animated[open]::details-content {
+  opacity: 1;
+  transform: scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  details.menu-animated::details-content {
+    transition: opacity 160ms var(--ease-out);
+    transform: none;
+  }
 }

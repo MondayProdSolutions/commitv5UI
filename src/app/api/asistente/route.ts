@@ -7,13 +7,23 @@ import { assistantChatSchema } from '@/lib/validation/assistant';
 import { getModuleContext } from '@/lib/assistant/knowledge';
 import { buildSystemInstruction, ESCALATE_MARKER } from '@/lib/assistant/prompt';
 import { askGemini, GeminiError } from '@/lib/assistant/gemini';
+import { withTenant } from '@/lib/db';
+import { requireRequestTenantId } from '@/lib/tenant/with-request-tenant';
 
 export const runtime = 'nodejs';
 
 const FALLBACK_REPLY = 'No pude procesar tu pregunta en este momento.';
 
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
+  // getCurrentUser() lee User/Session bajo RLS (ver src/lib/db.ts): necesita
+  // contexto de tenant activo igual que cualquier otro punto de entrada. Esta
+  // ruta lo omitía y por eso fallaba siempre con "No hay contexto de tenant
+  // activo." — nunca llegaba a llamar a Gemini. El resto del handler (rate
+  // limit en memoria, llamada HTTP a Gemini) queda fuera de la transacción a
+  // propósito: no son operaciones de base de datos ni deben bloquear una
+  // conexión del pool mientras esperan la red.
+  const tenantId = await requireRequestTenantId();
+  const user = await withTenant(tenantId, () => getCurrentUser());
   if (!user) return NextResponse.json({ error: 'Sesión requerida' }, { status: 403 });
 
   try {

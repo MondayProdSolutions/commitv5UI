@@ -9,6 +9,7 @@ export type TenantSummary = {
   nombre: string;
   estado: 'PRUEBA' | 'ACTIVO' | 'SUSPENDIDO';
   planNombre: string;
+  estadoDesde: Date;
 };
 
 export type TenantStatus = 'PRUEBA' | 'ACTIVO' | 'SUSPENDIDO';
@@ -32,6 +33,7 @@ export async function listTenants(): Promise<TenantSummary[]> {
       nombre: t.nombre,
       estado: t.estado,
       planNombre: t.plan.nombre,
+      estadoDesde: t.estadoDesde,
     }));
   });
 }
@@ -81,5 +83,7 @@ export async function createTenant(input: CreateTenantInput): Promise<{ tenantId
 
 export async function setTenantEstado(tenantId: string, estado: TenantStatus): Promise<void> {
   await requirePlatformAdmin();
-  await withPlatformAdmin(() => db.tenant.update({ where: { id: tenantId }, data: { estado } }));
+  await withPlatformAdmin(() =>
+    db.tenant.update({ where: { id: tenantId }, data: { estado, estadoDesde: new Date() } }),
+  );
 }

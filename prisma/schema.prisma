@@ -545,6 +545,7 @@ model Tenant {
   slug               String              @unique
   nombre             String
   estado             TenantStatus        @default(PRUEBA)
+  estadoDesde        DateTime            @default(now())
   planId             String
   plan               Plan                @relation(fields: [planId], references: [id])
   createdAt          DateTime            @default(now())

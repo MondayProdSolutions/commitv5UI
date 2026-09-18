@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -8,8 +8,11 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
+// Identidad de marca "Commit Graphite & Bone": Geist (UI) + IBM Plex Mono
+// (cifras y datos tabulares).
+const plexMono = IBM_Plex_Mono({
   variable: "--font-geist-mono",
+  weight: ["400", "500", "600"],
   subsets: ["latin"],
 });
 
@@ -41,7 +44,7 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${plexMono.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

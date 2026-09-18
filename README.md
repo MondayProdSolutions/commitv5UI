@@ -37,6 +37,13 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    ```
    Abre [http://localhost:3000](http://localhost:3000)
 
+   **Alternativa de una sola terminal:** `npm run dev:all` levanta el
+   Postgres embebido (si no está corriendo ya) y `next dev` en el mismo
+   proceso — `Ctrl+C` detiene ambos. Sigue necesitando `db:migrate`/`db:seed`
+   la primera vez (o después de un `db:reset`). Si prefieres control manual
+   sobre la BD (por ejemplo dejarla corriendo entre varias sesiones de
+   `dev`), usa el flujo de dos terminales de los pasos 3-5.
+
 6. **Crear el primer administrador:**
    Abre [http://localhost:3000/setup](http://localhost:3000/setup) y crea la cuenta del primer administrador. Esta pantalla es de un solo uso; luego redirige a `/login`.
 
@@ -45,8 +52,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 | Comando | Descripción |
 |---------|------------|
 | `npm run dev` | Servidor de desarrollo (Next.js con hot-reload) |
+| `npm run dev:all` | `dev` + Postgres embebido en un solo comando/terminal (lo levanta si no está corriendo; `Ctrl+C` detiene ambos) |
 | `npm run build` | Compilar para producción |
 | `npm start` | Iniciar servidor compilado |
+| `npm run start:all` | `start` + Postgres embebido en un solo comando (mismo mecanismo que `dev:all`; requiere `embedded-postgres` como dependencia de producción, ver nota abajo) |
 | `npm run lint` | Ejecutar ESLint |
 | `npm run typecheck` | Validar tipos TypeScript |
 | `npm test` | Ejecutar todos los tests (unit + integration) |
@@ -62,6 +71,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ### Notas importantes
 
+- **`start:all` en producción**: `embedded-postgres` hoy es `devDependency` (pensado para desarrollo/test). Si el plan de despliegue es un servidor propio administrado por el equipo (en vez de un Postgres gestionado aparte), promuévanla a dependencia de producción antes de usar `npm run start:all` ahí — es la única condición pendiente para que ese comando funcione igual en producción que en dev.
 - **`.pgdata/`**: Carpeta de la BD local persistente. Puedes borrarla en cualquier momento para empezar de cero (después de `db:reset` o `db:start`).
 - **`ATTENDANCE_PHOTOS_DIR`**: carpeta local donde se guardan las fotos de entrada/salida de Asistencia (por defecto `.attendance-photos`, ignorada por git).
 - **Tests de integración**: No requieren `npm run db:start` — cada test levanta su propia instancia efímera de PostgreSQL en el puerto `54330`. Corren en paralelo de forma segura.

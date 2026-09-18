@@ -10,6 +10,12 @@ node_modules/
 # Git worktrees (isolated workspaces for feature branches)
 .worktrees/
 
+# Claude Code / agent tooling caches (skills, worktrees, lockfiles) — local
+# dev-tool state, not part of the ERP application.
+.claude/
+.agents/
+skills-lock.json
+
 # Local embedded Postgres
 .pgdata/
 .e2e-db-url

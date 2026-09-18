@@ -3,11 +3,29 @@ import { listTenants, type TenantSummary } from '@/lib/platform/tenants';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, type Column } from '@/components/DataTable';
+import { TenantEstadoForm } from './tenants/TenantEstadoForm';
 
 function EstadoBadge({ estado }: { estado: TenantSummary['estado'] }) {
   if (estado === 'ACTIVO') return <Badge tone="success">Activo</Badge>;
   if (estado === 'SUSPENDIDO') return <Badge tone="danger">Suspendido</Badge>;
   return <Badge tone="warning">Prueba</Badge>;
+}
+
+const fechaLicencia = new Intl.DateTimeFormat('es-MX', { dateStyle: 'long' });
+
+const ESTADO_DESDE_LABEL: Record<TenantSummary['estado'], string> = {
+  ACTIVO: 'Licencia activa desde',
+  SUSPENDIDO: 'Suspendida desde',
+  PRUEBA: 'En prueba desde',
+};
+
+function LicenciaDesdeBox({ estado, desde }: { estado: TenantSummary['estado']; desde: Date }) {
+  return (
+    <div className="inline-flex flex-col rounded-control border border-line bg-surface-raised px-2.5 py-1.5 text-xs">
+      <span className="text-ink-subtle">{ESTADO_DESDE_LABEL[estado]}</span>
+      <span className="font-semibold text-ink">{fechaLicencia.format(desde)}</span>
+    </div>
+  );
 }
 
 export default async function TenantsPage() {
@@ -18,6 +36,16 @@ export default async function TenantsPage() {
     { key: 'slug', header: 'Subdominio' },
     { key: 'planNombre', header: 'Plan' },
     { key: 'estado', header: 'Estado', render: (t) => <EstadoBadge estado={t.estado} /> },
+    {
+      key: 'estadoDesde',
+      header: 'Licencia',
+      render: (t) => <LicenciaDesdeBox estado={t.estado} desde={t.estadoDesde} />,
+    },
+    {
+      key: 'acciones',
+      header: '',
+      render: (t) => <TenantEstadoForm tenantId={t.id} nombre={t.nombre} estado={t.estado} />,
+    },
   ];
 
   return (

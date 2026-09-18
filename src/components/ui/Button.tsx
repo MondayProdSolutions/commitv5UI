@@ -51,7 +51,8 @@ export function Button({
       {...rest}
       disabled={disabled || pending}
       className={
-        'inline-flex items-center justify-center gap-1.5 rounded-control font-semibold transition-colors ' +
+        'inline-flex items-center justify-center gap-1.5 rounded-pill font-semibold ' +
+        'transition-[color,background-color,border-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97] ' +
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
         VARIANT_CLASSES[variant] +
         ' ' +

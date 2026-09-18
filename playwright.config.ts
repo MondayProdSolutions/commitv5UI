@@ -23,12 +23,16 @@ export default defineConfig({
   globalSetup: './test/playwright.global-setup.ts',
   globalTeardown: './test/playwright.global-teardown.ts',
   use: {
-    baseURL: 'http://localhost:3100',
+    // Subdominio del tenant sembrado por `prisma/seed.ts` (slug 'default').
+    // `*.localhost` resuelve a loopback sin configuración extra (RFC 6761); un
+    // host sin subdominio nunca resuelve tenant bajo el proxy multi-tenant
+    // (`resolveTenantSlug`), así que `/login`/`/setup` tirarían NO_TENANT.
+    baseURL: 'http://default.localhost:3100',
     trace: 'on-first-retry',
   },
   webServer: {
     command: 'npm run build && npm run start -- -p 3100',
-    url: 'http://localhost:3100/login',
+    url: 'http://default.localhost:3100/login',
     reuseExistingServer: false,
     timeout: 240_000,
     env: {

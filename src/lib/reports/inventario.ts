@@ -8,7 +8,7 @@ export type InventoryReport = {
   periodo: ReportPeriod;
   kpis: { valorCosto: number; valorVenta: number; stockBajo: number; movimientosPeriodo: number };
   movimientosPorTipo: { tipo: string; cantidad: number }[];
-  topRotacion: { variantId: string; nombre: string; unidadesVendidas: number }[];
+  topRotacion: { variantId: string; nombre: string; unidadesVendidas: number; imagenUrl: string | null }[];
   detalle: { fecha: Date; producto: string; tipo: string; cantidad: number; usuario: string }[];
 };
 
@@ -30,7 +30,9 @@ export async function getInventoryReport(periodo: ReportPeriod): Promise<Invento
         createdAt: true,
         tipo: true,
         cantidad: true,
-        variant: { select: { nombre: true, product: { select: { nombre: true } } } },
+        variant: {
+          select: { nombre: true, product: { select: { nombre: true, imagenUrl: true } } },
+        },
         actor: { select: { nombre: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -43,16 +45,21 @@ export async function getInventoryReport(periodo: ReportPeriod): Promise<Invento
 
   const movimientosPorTipo = movimientosPorTipoRaw.map((m) => ({ tipo: m.tipo, cantidad: m._count }));
 
-  const rotacion = new Map<string, { nombre: string; unidadesVendidas: number }>();
+  const rotacion = new Map<string, { nombre: string; unidadesVendidas: number; imagenUrl: string | null }>();
   for (const m of movimientos) {
     if (m.tipo !== 'VENTA') continue;
     const nombre = m.variant.nombre ? `${m.variant.product.nombre} (${m.variant.nombre})` : m.variant.product.nombre;
-    const acc = rotacion.get(m.variantId) ?? { nombre, unidadesVendidas: 0 };
+    const acc = rotacion.get(m.variantId) ?? { nombre, unidadesVendidas: 0, imagenUrl: m.variant.product.imagenUrl };
     acc.unidadesVendidas += Math.abs(m.cantidad);
     rotacion.set(m.variantId, acc);
   }
   const topRotacion = [...rotacion.entries()]
-    .map(([variantId, v]) => ({ variantId, nombre: v.nombre, unidadesVendidas: v.unidadesVendidas }))
+    .map(([variantId, v]) => ({
+      variantId,
+      nombre: v.nombre,
+      unidadesVendidas: v.unidadesVendidas,
+      imagenUrl: v.imagenUrl,
+    }))
     .sort((a, b) => b.unidadesVendidas - a.unidadesVendidas)
     .slice(0, 10);
 

@@ -34,9 +34,21 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 // requirePermission) y nunca debe poder reemplazar al ForbiddenError real.
 // Aquí simplemente se garantiza el piso mínimo de 2 para que el caso de test
 // (pool=1) no sea peor que el de producción.
-const rawPrismaPoolMax = process.env.DB_POOL_MAX
-  ? Math.max(2, Number(process.env.DB_POOL_MAX))
-  : undefined;
+// Default de 20 (antes: sin `max` explícito, así que @prisma/adapter-pg caía al
+// default de `pg.Pool`, 10). Cada navegación autenticada consume 2-3 conexiones
+// del pool por diseño, no por fuga: proxy.ts abre una transacción corta para
+// resolver el tenant (withPlatformAdmin) y otra para validar la sesión
+// (withTenant), y el propio render de página abre una tercera que vive toda la
+// duración del render (ver withTenant más abajo). Con el default de 10 se
+// reprodujo el error real reportado — PrismaClientKnownRequestError P2028
+// "Unable to start a transaction in the given time" — con ~15-20 navegaciones
+// concurrentes de un solo usuario de prueba; en producción, con varios cajeros
+// simultáneos, el piso real de concurrencia soportada era de solo 3-5 usuarios.
+// 20 no es un número arbitrario para "hacer que pase el error": es el primer
+// valor que absorbe esa multiplicidad de 2-3 conexiones/navegación sin acercarse
+// al `max_connections` de Postgres (100 en dev embebido). Ajustable por entorno
+// vía DB_POOL_MAX si el Postgres real tiene menos margen.
+const rawPrismaPoolMax = Math.max(2, Number(process.env.DB_POOL_MAX ?? 20));
 const rawPrisma =
   globalForPrisma.prisma ??
   new PrismaClient({

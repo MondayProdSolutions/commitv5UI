@@ -112,3 +112,10 @@ export async function stockAlertsCount(): Promise<number> {
 export function invalidateStockAlertsCache(): void {
   cache.delete(getCurrentTenantId());
 }
+
+/** Cuenta de variantes activas (no archivadas, de productos no archivados). Para la KPI "Total SKUs". */
+export async function totalSkusActivos(): Promise<number> {
+  return db.productVariant.count({
+    where: { archivada: false, product: { archivado: false } },
+  });
+}

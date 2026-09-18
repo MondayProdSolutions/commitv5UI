@@ -53,7 +53,25 @@ export async function proxy(req: NextRequest) {
 
   // Resolución de tenant por subdominio (Host header). No aplica a rutas
   // ignoradas (assets, health) — esas no necesitan una consulta a DB.
-  const host = req.headers.get('host') ?? '';
+  //
+  // Se prioriza x-forwarded-host sobre host: cuando una Server Action muta
+  // cookies Y llama a redirect() en la misma invocación (p. ej. login,
+  // logout), Next.js arma la respuesta de "single roundtrip" con un
+  // re-render interno adicional de la ruta actual (la que dispara la
+  // acción) para reflejar la cookie recién mutada. Ese re-render viaja como
+  // una sub-request de loopback cuyo header `host` es el bind interno del
+  // servidor (p. ej. "localhost:3000"), no el subdominio real del tenant —
+  // pero Next SÍ preserva fielmente el host original en x-forwarded-host.
+  // Sin esto, ese re-render interno no resuelve tenant, lanza NO_TENANT sin
+  // capturar, y el cliente lo recibe como un error sin capturar justo al
+  // iniciar/cerrar sesión (visible como el error de hidratación reportado;
+  // un refresh normal no pasa por esta sub-request y por eso "arregla" todo).
+  //
+  // No es una superficie nueva de spoofing: `host` ya se usaba sin validar
+  // más allá de "el slug existe como tenant" — la confianza en cualquiera de
+  // los dos headers depende igual de que el borde/proxy real de despliegue
+  // fuerce el Host correcto antes de llegar aquí.
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '';
   const slug = resolveTenantSlug(host);
 
   // Se conserva fuera del `if`: la sesión de usuario de tenant, más abajo,
